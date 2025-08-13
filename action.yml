@@ -114,6 +114,14 @@ inputs:
     description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
     required: false
     default: "false"
+  enable_submodule_branches:
+    description: "Enable automatic creation of corresponding branches in git submodules. Set to 'false' to disable submodule branch management."
+    required: false
+    default: "true"
+  branch_push_strategy:
+    description: "Strategy for pushing branches to remote. Options: 'immediate' (push immediately after creation), 'deferred' (push on first commit), 'auto' (smart selection based on context)"
+    required: false
+    default: "auto"
   experimental_allowed_domains:
     description: "Restrict network access to these domains only (newline-separated). If not set, no restrictions are applied. Provider domains are auto-detected."
     required: false
@@ -166,6 +174,8 @@ runs:
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
+        ENABLE_SUBMODULE_BRANCHES: ${{ inputs.enable_submodule_branches }}
+        BRANCH_PUSH_STRATEGY: ${{ inputs.branch_push_strategy }}
 
     - name: Install Base Action Dependencies
       if: steps.prepare.outputs.contains_trigger == 'true'
@@ -266,6 +276,8 @@ runs:
         PREPARE_ERROR: ${{ steps.prepare.outputs.prepare_error || '' }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
+        ENABLE_SUBMODULE_BRANCHES: ${{ inputs.enable_submodule_branches }}
+        BRANCH_PUSH_STRATEGY: ${{ inputs.branch_push_strategy }}
 
     - name: Display Claude Code Report
       if: steps.prepare.outputs.contains_trigger == 'true' && steps.claude-code.outputs.execution_file != ''

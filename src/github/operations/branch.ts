@@ -12,12 +12,52 @@ import type { ParsedGitHubContext } from "../context";
 import type { GitHubPullRequest } from "../types";
 import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
+import { setupSubmoduleBranches, type SubmoduleBranchInfo } from "./submodule";
 
 export type BranchInfo = {
   baseBranch: string;
   claudeBranch?: string;
   currentBranch: string;
+  submoduleBranches?: SubmoduleBranchInfo[];
+  pushStrategy?: "immediate" | "deferred" | "auto";
 };
+
+/**
+ * Determine the effective push strategy based on user setting and context
+ */
+function determinePushStrategy(
+  userStrategy: "immediate" | "deferred" | "auto",
+  useCommitSigning: boolean
+): "immediate" | "deferred" {
+  switch (userStrategy) {
+    case "immediate":
+      if (useCommitSigning) {
+        console.warn("⚠️ Immediate push strategy not compatible with commit signing, using deferred strategy");
+        return "deferred";
+      }
+      return "immediate";
+    case "deferred":
+      return "deferred";
+    case "auto":
+      // Auto mode: use deferred if commit signing is enabled, otherwise immediate
+      return useCommitSigning ? "deferred" : "immediate";
+  }
+}
+
+/**
+ * Push branch to remote repository
+ */
+async function pushBranchToRemote(branchName: string): Promise<void> {
+  try {
+    console.log(`📤 Pushing branch ${branchName} to remote...`);
+    await $`git push origin ${branchName} --set-upstream`;
+    console.log(`✅ Successfully pushed branch ${branchName} to remote`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Failed to push branch ${branchName}:`, errorMessage);
+    throw error;
+  }
+}
 
 export async function setupBranch(
   octokits: Octokits,
@@ -26,8 +66,12 @@ export async function setupBranch(
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
-  const { baseBranch, branchPrefix } = context.inputs;
+  const { baseBranch, branchPrefix, useCommitSigning, enableSubmoduleBranches, branchPushStrategy } = context.inputs;
   const isPR = context.isPR;
+  
+  // Determine the effective push strategy
+  const effectivePushStrategy = determinePushStrategy(branchPushStrategy, useCommitSigning);
+  console.log(`🔧 Using ${effectivePushStrategy} push strategy (user setting: ${branchPushStrategy}, commit signing: ${useCommitSigning})`);
 
   if (isPR) {
     const prData = githubData.contextData as GitHubPullRequest;
@@ -110,30 +154,54 @@ export async function setupBranch(
     const currentSHA = sourceBranchRef.data.object.sha;
     console.log(`Source branch SHA: ${currentSHA}`);
 
-    // For commit signing, defer branch creation to the file ops server
-    if (context.inputs.useCommitSigning) {
+    // Handle branch creation based on push strategy
+    if (effectivePushStrategy === "deferred") {
       console.log(
-        `Branch name generated: ${newBranch} (will be created by file ops server on first commit)`,
+        `Branch name generated: ${newBranch} (will be ${useCommitSigning ? 'created by file ops server on first commit' : 'pushed on first commit'})`,
       );
 
       // Ensure we're on the source branch
       console.log(`Fetching and checking out source branch: ${sourceBranch}`);
       await $`git fetch origin ${sourceBranch} --depth=1`;
       await $`git checkout ${sourceBranch}`;
+      
+      // For deferred push without commit signing, create the branch locally
+      if (!useCommitSigning) {
+        await $`git checkout -b ${newBranch}`;
+        console.log(`✅ Created local branch ${newBranch} (push deferred until first commit)`);
+      }
 
       // Set outputs for GitHub Actions
       core.setOutput("CLAUDE_BRANCH", newBranch);
       core.setOutput("BASE_BRANCH", sourceBranch);
+
+      // Setup submodule branches if enabled
+      let submoduleBranches: SubmoduleBranchInfo[] = [];
+      if (enableSubmoduleBranches !== false) {
+        try {
+          console.log("Setting up submodule branches...");
+          submoduleBranches = await setupSubmoduleBranches(newBranch, sourceBranch, effectivePushStrategy);
+          if (submoduleBranches.length > 0) {
+            console.log(`✓ Set up branches in ${submoduleBranches.length} submodules`);
+          }
+        } catch (error) {
+          console.warn("Failed to setup submodule branches:", error);
+          // Don't fail the entire process for submodule errors
+        }
+      }
+
       return {
         baseBranch: sourceBranch,
         claudeBranch: newBranch,
-        currentBranch: sourceBranch, // Stay on source branch for now
+        currentBranch: useCommitSigning ? sourceBranch : newBranch,
+        submoduleBranches,
+        pushStrategy: effectivePushStrategy,
       };
     }
 
-    // For non-signing case, create and checkout the branch locally only
+    // Immediate push strategy: create branch and push immediately
     console.log(
-      `Creating local branch ${newBranch} for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
+      `Creating and pushing branch ${newBranch} for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
     );
 
     // Fetch and checkout the source branch first to ensure we branch from the correct base
@@ -144,17 +212,41 @@ export async function setupBranch(
     // Create and checkout the new branch from the source branch
     await $`git checkout -b ${newBranch}`;
 
-    console.log(
-      `Successfully created and checked out local branch: ${newBranch}`,
-    );
+    console.log(`✅ Successfully created local branch: ${newBranch}`);
+
+    // Push the branch immediately
+    try {
+      await pushBranchToRemote(newBranch);
+    } catch (error) {
+      console.warn(`⚠️ Failed to push main repository branch ${newBranch}, continuing with local branch only`);
+      // Continue execution even if push fails
+    }
 
     // Set outputs for GitHub Actions
     core.setOutput("CLAUDE_BRANCH", newBranch);
     core.setOutput("BASE_BRANCH", sourceBranch);
+
+    // Setup submodule branches if enabled
+    let submoduleBranches: SubmoduleBranchInfo[] = [];
+    if (enableSubmoduleBranches !== false) {
+      try {
+        console.log("Setting up submodule branches...");
+        submoduleBranches = await setupSubmoduleBranches(newBranch, sourceBranch, effectivePushStrategy);
+        if (submoduleBranches.length > 0) {
+          console.log(`✓ Set up branches in ${submoduleBranches.length} submodules`);
+        }
+      } catch (error) {
+        console.warn("Failed to setup submodule branches:", error);
+        // Don't fail the entire process for submodule errors
+      }
+    }
+
     return {
       baseBranch: sourceBranch,
       claudeBranch: newBranch,
       currentBranch: newBranch,
+      submoduleBranches,
+      pushStrategy: effectivePushStrategy,
     };
   } catch (error) {
     console.error("Error in branch setup:", error);

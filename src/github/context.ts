@@ -78,6 +78,8 @@ type BaseContext = {
     additionalPermissions: Map<string, string>;
     useCommitSigning: boolean;
     allowedBots: string;
+    enableSubmoduleBranches: boolean;
+    branchPushStrategy: "immediate" | "deferred" | "auto";
   };
 };
 
@@ -138,6 +140,8 @@ export function parseGitHubContext(): GitHubContext {
       ),
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
       allowedBots: process.env.ALLOWED_BOTS ?? "",
+      enableSubmoduleBranches: process.env.ENABLE_SUBMODULE_BRANCHES !== "false",
+      branchPushStrategy: (process.env.BRANCH_PUSH_STRATEGY as "immediate" | "deferred" | "auto") ?? "auto",
     },
   };
 

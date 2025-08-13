@@ -5,7 +5,9 @@ import { checkHumanActor } from "../../github/validation/actor";
 import { createInitialComment } from "../../github/operations/comments/create-initial";
 import { setupBranch } from "../../github/operations/branch";
 import { configureGitAuth } from "../../github/operations/git-config";
+import { updateTrackingComment } from "../../github/operations/comments/update-with-branch";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
+import { coordinateBranchOperations } from "../../github/operations/branch-sync";
 import { fetchGitHubData } from "../../github/data/fetcher";
 import { createPrompt, generateDefaultPrompt } from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
@@ -80,6 +82,42 @@ export const tagMode: Mode = {
 
     // Setup branch
     const branchInfo = await setupBranch(octokit, githubData, context);
+
+    // Update tracking comment with branch info and submodule branches
+    if (branchInfo.claudeBranch || branchInfo.submoduleBranches) {
+      try {
+        await updateTrackingComment(
+          octokit,
+          context,
+          commentId,
+          branchInfo.claudeBranch,
+          branchInfo.submoduleBranches
+        );
+        console.log("✓ Updated tracking comment with branch information");
+      } catch (error) {
+        console.warn("Failed to update tracking comment with branch info:", error);
+        // Don't fail the entire process for comment update errors
+      }
+    }
+
+    // Coordinate branch operations if we have both main and submodule branches
+    if (branchInfo.claudeBranch && branchInfo.submoduleBranches && branchInfo.submoduleBranches.length > 0) {
+      try {
+        await coordinateBranchOperations(
+          branchInfo.claudeBranch,
+          branchInfo.submoduleBranches,
+          {
+            mainRepoPushStrategy: branchInfo.pushStrategy || "immediate",
+            submodulePushStrategy: branchInfo.pushStrategy || "immediate",
+            timeout: 60000, // 1 minute timeout
+          }
+        );
+        console.log("✓ Branch coordination completed");
+      } catch (error) {
+        console.warn("Branch coordination failed:", error);
+        // Don't fail the entire process for coordination errors
+      }
+    }
 
     // Configure git authentication if not using commit signing
     if (!context.inputs.useCommitSigning) {

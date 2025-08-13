@@ -1,0 +1,114 @@
+name: Claude Code with Submodule Branch Management
+
+# This example demonstrates how to use Claude Code Action with automatic
+# submodule branch creation and management.
+#
+# Features demonstrated:
+# - Automatic detection of git submodules
+# - Creating corresponding branches in submodules
+# - Synchronizing work across main repository and submodules
+# - Handling submodule commit operations
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request:
+    types: [opened]
+
+jobs:
+  claude-submodule-demo:
+    # Only run when Claude is mentioned or assigned
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || github.event.issue.assignee.login == 'claude')) ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '@claude'))
+    
+    runs-on: ubuntu-latest
+    
+    permissions:
+      # Required permissions for Claude Code Action with submodules
+      contents: write        # To create branches and commit changes
+      pull-requests: write   # To create and comment on PRs
+      issues: write         # To comment on issues
+      id-token: write       # For OIDC token exchange
+      actions: read         # To access workflow information
+    
+    steps:
+      # Checkout with submodules - IMPORTANT for submodule functionality
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          # Fetch submodules recursively
+          submodules: recursive
+          # Use token that has access to submodule repositories
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Fetch enough history for branch operations
+          fetch-depth: 0
+      
+      # Claude Code Action with submodule support enabled
+      - name: Claude Code Action with Submodules
+        uses: anthropics/claude-code-github-action@v1
+        with:
+          # Required: Anthropic API key
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          # Submodule Configuration
+          enable_submodule_branches: true    # Enable automatic submodule branch creation
+          branch_push_strategy: auto         # Push strategy: immediate, deferred, or auto
+          base_branch: develop               # Base branch for both main repo and submodules
+          branch_prefix: "claude/"           # Prefix for created branches
+          
+          # Mode Configuration
+          mode: tag                         # Use tag mode for @claude mentions
+          trigger_phrase: "@claude"         # Trigger phrase in comments
+          assignee_trigger: "claude"        # Username for issue assignment trigger
+          
+          # Advanced Submodule Settings
+          use_commit_signing: true          # Enable commit signing for submodule commits
+          
+          # Tool Configuration
+          allowed_tools: |
+            commit_submodule_changes
+            WebSearch
+          
+          # Custom instructions for submodule work
+          custom_instructions: |
+            When working with this repository:
+            
+            1. This project uses git submodules for modular development
+            2. Always check if changes need to be made in submodules
+            3. Use the commit_submodule_changes tool to commit submodule changes
+            4. Coordinate changes between main repository and submodules
+            5. Explain the relationship between main repo and submodule changes
+            6. Be aware that branch push strategy is set to 'auto' mode:
+               - With commit signing: branches pushed on first commit
+               - Without commit signing: branches pushed immediately
+            
+            Available submodules in this project:
+            - frontend/ - React frontend application
+            - backend/ - Node.js backend API
+            - shared/ - Shared utilities and types
+            - docs/ - Documentation site
+            
+            Branch coordination notes:
+            - Main repository and submodule branches use the same push strategy
+            - Cross-repository dependencies are automatically handled
+            - Failed branches are cleaned up automatically
+        
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      # Optional: Display submodule status after Claude's work
+      - name: Display Submodule Status
+        if: always()
+        run: |
+          echo "=== Submodule Status After Claude's Work ==="
+          git submodule status
+          echo ""
+          echo "=== Submodule Branch Information ==="
+          git submodule foreach 'echo "Submodule: $name"; git branch -a; echo ""'

@@ -1,6 +1,8 @@
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
 import { $ } from "bun";
+import { hasSubmodules, getSubmoduleStatus, type SubmoduleBranchInfo } from "./submodule";
+import { cleanupBranches, cleanupFailedBranches, type CleanupOptions } from "./branch-cleanup-enhanced";
 
 export async function checkAndCommitOrDeleteBranch(
   octokit: Octokits,
@@ -129,4 +131,120 @@ export async function checkAndCommitOrDeleteBranch(
   }
 
   return { shouldDeleteBranch, branchLink };
+}
+
+/**
+ * Enhanced cleanup function that handles both main repository and submodule branches
+ */
+export async function enhancedBranchCleanup(
+  octokit: Octokits,
+  owner: string,
+  repo: string,
+  claudeBranch: string | undefined,
+  baseBranch: string,
+  submoduleBranches: SubmoduleBranchInfo[] = [],
+  options: CleanupOptions = {}
+): Promise<void> {
+  console.log("🧹 Starting enhanced branch cleanup process...");
+  
+  // First, clean up any failed submodule branches
+  if (submoduleBranches.some(branch => branch.error)) {
+    try {
+      await cleanupFailedBranches(submoduleBranches, {
+        ...options,
+        removeFailedBranches: true,
+      });
+    } catch (error) {
+      console.warn("Failed branches cleanup encountered errors:", error);
+    }
+  }
+  
+  // Then run comprehensive cleanup
+  try {
+    const result = await cleanupBranches(
+      claudeBranch,
+      baseBranch,
+      submoduleBranches,
+      {
+        removeEmptyBranches: true,
+        removeFailedBranches: true,
+        dryRun: false,
+        ...options,
+      }
+    );
+    
+    // Log cleanup results
+    if (result.mainRepository) {
+      const main = result.mainRepository;
+      if (main.cleaned) {
+        console.log(`✅ Main repository branch ${main.branchName} was cleaned up: ${main.reason}`);
+      } else if (main.error) {
+        console.error(`❌ Main repository branch ${main.branchName} cleanup failed: ${main.error}`);
+      }
+    }
+    
+    const cleanedSubmodules = result.submodules.filter(sub => sub.cleaned);
+    if (cleanedSubmodules.length > 0) {
+      console.log(`✅ Cleaned up ${cleanedSubmodules.length} submodule branches`);
+    }
+    
+    const failedSubmodules = result.submodules.filter(sub => sub.error);
+    if (failedSubmodules.length > 0) {
+      console.warn(`⚠️ ${failedSubmodules.length} submodule branch cleanups failed`);
+    }
+    
+  } catch (error) {
+    console.error("Enhanced cleanup failed:", error);
+    // Fall back to original cleanup behavior
+    console.log("Falling back to original cleanup method...");
+    try {
+      await checkAndCommitOrDeleteBranch(octokit, owner, repo, claudeBranch, baseBranch, false);
+    } catch (fallbackError) {
+      console.error("Fallback cleanup also failed:", fallbackError);
+    }
+  }
+}
+
+/**
+ * Validate branch health before cleanup
+ */
+export async function validateBranchHealth(
+  octokit: Octokits,
+  owner: string,
+  repo: string,
+  claudeBranch: string | undefined,
+  submoduleBranches: SubmoduleBranchInfo[] = []
+): Promise<{ healthy: boolean; issues: string[] }> {
+  const issues: string[] = [];
+  
+  // Check main repository branch
+  if (claudeBranch) {
+    try {
+      await octokit.rest.repos.getBranch({
+        owner,
+        repo,
+        branch: claudeBranch,
+      });
+    } catch (error: any) {
+      if (error.status === 404) {
+        issues.push(`Main repository branch ${claudeBranch} not found on remote`);
+      } else {
+        issues.push(`Error checking main repository branch: ${error.message}`);
+      }
+    }
+  }
+  
+  // Check submodule branches
+  for (const subBranch of submoduleBranches) {
+    if (subBranch.error) {
+      issues.push(`Submodule ${subBranch.submodule.name}: ${subBranch.error}`);
+    } else if (!subBranch.pushed) {
+      issues.push(`Submodule ${subBranch.submodule.name}: branch not pushed to remote`);
+    }
+  }
+  
+  return {
+    healthy: issues.length === 0,
+    issues,
+  };
 }
