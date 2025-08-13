@@ -550,6 +550,9 @@ export function generateDefaultPrompt(
   context: PreparedContext,
   githubData: FetchDataResult,
   useCommitSigning: boolean = false,
+  branchReuseStrategy?: "always_new" | "smart_reuse" | "always_reuse",
+  branchPushStrategy?: "immediate" | "deferred" | "auto",
+  enableSubmoduleBranches?: boolean,
 ): string {
   const {
     contextData,
@@ -654,6 +657,42 @@ Tool usage example for mcp__github_comment__update_claude_comment:
 Only the body parameter is required - the tool automatically knows which comment to update.
 </comment_tool_info>`}
 
+<branch_management_config>
+BRANCH MANAGEMENT CONFIGURATION:
+- Branch Reuse Strategy: ${branchReuseStrategy || "smart_reuse"}
+- Branch Push Strategy: ${branchPushStrategy || "auto"}
+- Submodule Branches: ${enableSubmoduleBranches !== false ? "enabled" : "disabled"}
+
+BRANCH REUSE BEHAVIOR:
+${branchReuseStrategy === "always_new" ? 
+`- ALWAYS_NEW: Always create new branches for every interaction. This is the traditional behavior.` :
+branchReuseStrategy === "always_reuse" ?
+`- ALWAYS_REUSE: Always try to reuse existing branches when available. Only create new branches if no suitable existing branch is found.` :
+`- SMART_REUSE (Default): Intelligently detect user intent from comments to decide between branch reuse and creation.
+
+INTENT DETECTION FOR BRANCH CREATION:
+When users explicitly request NEW branches (any language):
+• English: "create a new branch", "start fresh branch", "new feature branch", "separate branch", "don't reuse existing branch"
+• 中文: "新建分支", "創建新的分支", "重新開始", "不要沿用現有分支", "新增分支"  
+• 日文: "新しいブランチ", "ブランチを作成"
+• Spanish: "nueva rama", "crear rama"
+• French: "nouvelle branche", "créer branche"
+
+When users want to CONTINUE on existing branch:
+• English: "continue on this branch", "use existing branch", "reuse current branch"
+• 中文: "繼續使用現有分支", "沿用這個分支", "復用分支"
+
+If no explicit intent is detected, you will reuse existing branches by default.`}
+
+${enableSubmoduleBranches !== false ? `
+SUBMODULE BRANCH COORDINATION:
+- Submodule branches are automatically created and managed alongside main repository branches
+- Branch reuse applies to both main repository and submodule branches
+- All submodule branches use the same push strategy as the main repository
+- If main branch is reused, corresponding submodule branches will also be reused when available
+` : ""}
+</branch_management_config>
+
 Your task is to analyze the context, understand the request, and provide helpful responses and/or implement code changes as needed.
 
 IMPORTANT CLARIFICATIONS:
@@ -689,7 +728,17 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    - For implementation requests, assess if they are straightforward or complex.
    - Mark this todo as complete by checking the box.
 
-4. Execute Actions:
+4. Branch Decision Display (if applicable):
+${branchReuseStrategy !== "always_new" ? `   - If a branch was reused or there was a branch selection decision, include this information in your initial comment:
+     * "🔄 **Branch Status**: Reusing existing branch \`branch-name\` based on [reason]"
+     * "🆕 **Branch Status**: Created new branch \`branch-name\` based on [reason]"  
+   - Include the decision reason (e.g., "user requested new branch", "no suitable existing branch found", "continuing previous work")
+   - For smart_reuse mode, mention the intent detection result if relevant` : ""}
+${enableSubmoduleBranches !== false ? `   - If submodules are enabled, mention submodule branch coordination:
+     * "📦 **Submodules**: Coordinated branches in X submodules"
+     * Note any submodule branches that were reused vs newly created` : ""}
+
+5. Execute Actions:
    - Continually update your todo list as you discover new requirements or realize tasks can be broken down.
 
    A. For Answering Questions and Code Reviews:
@@ -735,9 +784,14 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Follow the same pushing strategy as for straightforward changes (see section B above).
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
 
-5. Final Update:
+6. Final Update:
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
+${branchReuseStrategy !== "always_new" ? `   - Include final branch status information in your summary:
+     * Which branch was used and why
+     * Whether it was reused or newly created
+     * Any relevant branch decision context` : ""}
+${enableSubmoduleBranches !== false ? `   - Mention submodule coordination results if applicable` : ""}
    - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
    - If you changed any files locally, you must update them in the remote branch via ${useCommitSigning ? "mcp__github_file_ops__commit_files" : "git commands (add, commit, push)"} before saying that you're done.
    ${eventData.claudeBranch ? `- If you created anything in your branch, your comment must include the PR URL with prefilled title and body mentioned above.` : ""}
@@ -748,7 +802,7 @@ Important Notes:
 - This includes ALL responses: code reviews, answers to questions, progress updates, and final results.${eventData.isPR ? `\n- PR CRITICAL: After reading files and forming your response, you MUST post it by calling mcp__github_comment__update_claude_comment. Do NOT just respond with a normal response, the user will not see it.` : ""}
 - You communicate exclusively by editing your single comment - not through any other means.
 - Use this spinner HTML when work is in progress: <img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />
-${eventData.isPR && !eventData.claudeBranch ? `- Always push to the existing branch when triggered on a PR.` : `- IMPORTANT: You are already on the correct branch (${eventData.claudeBranch || "the created branch"}). Never create new branches when triggered on issues or closed/merged PRs.`}
+${eventData.isPR && !eventData.claudeBranch ? `- Always push to the existing branch when triggered on a PR.` : `- IMPORTANT: You are already on the ${eventData.claudeBranch ? `correct branch (${eventData.claudeBranch})` : "branch that was selected for you"}. ${branchReuseStrategy === "smart_reuse" ? "This branch may be newly created or reused based on user intent detection." : branchReuseStrategy === "always_reuse" ? "This branch was reused from existing Claude branches if available." : "This branch was newly created."} Never create additional branches.`}
 ${
   useCommitSigning
     ? `- Use mcp__github_file_ops__commit_files for making commits (works for both new and existing files, single or multiple). Use mcp__github_file_ops__delete_files for deleting files (supports deleting single or multiple files atomically), or mcp__github__delete_file for deleting a single file. Edit files locally, and the tool will read the content from the same path on disk.
@@ -778,9 +832,17 @@ What You CAN Do:
 - Implement code changes (simple to moderate complexity) when explicitly requested
 - Create pull requests for changes to human-authored code
 - Smart branch handling:
-  - When triggered on an issue: Always create a new branch
-  - When triggered on an open PR: Always push directly to the existing PR branch
-  - When triggered on a closed PR: Create a new branch
+${branchReuseStrategy === "always_new" ?
+`  - Always create new branches for every interaction (traditional behavior)
+  - When triggered on an open PR: Push directly to the existing PR branch` :
+branchReuseStrategy === "always_reuse" ?
+`  - Always try to reuse existing Claude branches when available
+  - Only create new branches when no suitable existing branch found
+  - When triggered on an open PR: Push directly to the existing PR branch` :
+`  - SMART REUSE: Intelligently detect your intent and either reuse existing branches or create new ones
+  - If you detect explicit user request for new branch (from multilingual patterns), create new branch
+  - Otherwise, reuse existing suitable Claude branch from the same issue if available  
+  - When triggered on an open PR: Push directly to the existing PR branch`}
 
 What You CANNOT Do:
 - Submit formal GitHub PR reviews

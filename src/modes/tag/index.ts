@@ -166,7 +166,20 @@ export const tagMode: Mode = {
     githubData: FetchDataResult,
     useCommitSigning: boolean,
   ): string {
-    return generateDefaultPrompt(context, githubData, useCommitSigning);
+    // Extract branch management configuration from the original GitHub context
+    // Note: We need to get this from the environment or find another way to pass it
+    const branchReuseStrategy = process.env.BRANCH_REUSE_STRATEGY as "always_new" | "smart_reuse" | "always_reuse" || "smart_reuse";
+    const branchPushStrategy = process.env.BRANCH_PUSH_STRATEGY as "immediate" | "deferred" | "auto" || "auto";
+    const enableSubmoduleBranches = process.env.ENABLE_SUBMODULE_BRANCHES !== "false";
+    
+    return generateDefaultPrompt(
+      context, 
+      githubData, 
+      useCommitSigning, 
+      branchReuseStrategy, 
+      branchPushStrategy, 
+      enableSubmoduleBranches
+    );
   },
 
   getSystemPrompt() {

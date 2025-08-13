@@ -97,7 +97,7 @@ Claude will see the full PR context, including any comments.
 
 Add a comment to a PR or issue:
 
-```
+```text
 @claude What does this function do and how could we improve it?
 ```
 
@@ -107,7 +107,7 @@ Claude will analyze the code and provide a detailed explanation with suggestions
 
 Ask Claude to implement specific changes:
 
-```
+```text
 @claude Can you add error handling to this function?
 ```
 
@@ -115,7 +115,7 @@ Ask Claude to implement specific changes:
 
 Get a thorough review:
 
-```
+```text
 @claude Please review this PR and suggest improvements
 ```
 
@@ -125,7 +125,7 @@ Claude will analyze the changes and provide feedback.
 
 Upload a screenshot of a bug and ask Claude to fix it:
 
-```
+```text
 @claude Here's a screenshot of a bug I'm seeing [upload screenshot]. Can you fix it?
 ```
 
@@ -151,11 +151,13 @@ Claude automatically detects when you want to continue work on an existing branc
 ```
 
 **Will reuse existing branches:**
+
 - "@claude can you also fix the logging issue?"
 - "@claude continue working on this feature"
 - "@claude 繼續這個工作" (Chinese)
 
 **Will create new branches:**
+
 - "@claude create a new branch for the authentication feature"  
 - "@claude start a separate branch for this task"
 - "@claude 新建分支來處理這個問題" (Chinese)
@@ -227,6 +229,7 @@ Enable automatic branch management in git submodules:
 ```
 
 When enabled:
+
 - Claude automatically creates corresponding branches in submodules
 - Branch reuse logic applies to both main repository and submodules
 - Push strategies are coordinated across repositories

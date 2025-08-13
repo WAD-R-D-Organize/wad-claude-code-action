@@ -34,9 +34,10 @@ Works in coordination with branch reuse:
 
 Claude automatically detects user intent through multilingual pattern matching:
 
-#### Phrases that trigger NEW branch creation:
+#### Phrases that trigger NEW branch creation
 
 **English:**
+
 - "create a new branch"
 - "start fresh branch"
 - "new feature branch"
@@ -44,6 +45,7 @@ Claude automatically detects user intent through multilingual pattern matching:
 - "don't reuse existing branch"
 
 **中文 (Chinese):**
+
 - "新建分支"
 - "創建新的分支"
 - "重新開始"
@@ -51,18 +53,21 @@ Claude automatically detects user intent through multilingual pattern matching:
 - "新增分支"
 
 **日本語 (Japanese):**
+
 - "新しいブランチ"
 - "ブランチを作成"
 
-#### Phrases that encourage REUSE:
+#### Phrases that encourage REUSE
 
 **English:**
+
 - "continue on this branch"
 - "use existing branch"
 - "reuse current branch"
 - "keep using this branch"
 
 **中文 (Chinese):**
+
 - "繼續使用現有分支"
 - "沿用這個分支"
 - "復用分支"
