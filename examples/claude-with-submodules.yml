@@ -60,6 +60,7 @@ jobs:
           # Submodule Configuration
           enable_submodule_branches: true    # Enable automatic submodule branch creation
           branch_push_strategy: auto         # Push strategy: immediate, deferred, or auto
+          branch_reuse_strategy: smart_reuse # Branch reuse: always_new, smart_reuse, always_reuse
           base_branch: develop               # Base branch for both main repo and submodules
           branch_prefix: "claude/"           # Prefix for created branches
           
@@ -85,9 +86,14 @@ jobs:
             3. Use the commit_submodule_changes tool to commit submodule changes
             4. Coordinate changes between main repository and submodules
             5. Explain the relationship between main repo and submodule changes
-            6. Be aware that branch push strategy is set to 'auto' mode:
-               - With commit signing: branches pushed on first commit
-               - Without commit signing: branches pushed immediately
+            6. Be aware of the branch management configuration:
+               - Branch push strategy: 'auto' mode
+                 - With commit signing: branches pushed on first commit
+                 - Without commit signing: branches pushed immediately
+               - Branch reuse strategy: 'smart_reuse' mode
+                 - Reuses existing branches unless user explicitly requests new branch
+                 - Validates branch freshness and accessibility before reuse
+                 - Coordinates reuse between main repository and submodules
             
             Available submodules in this project:
             - frontend/ - React frontend application

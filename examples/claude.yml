@@ -37,6 +37,12 @@ jobs:
           # claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           timeout_minutes: "60"
           # mode: tag  # Default: responds to @claude mentions
+          
+          # Branch Management Configuration
+          # branch_reuse_strategy: smart_reuse  # Options: always_new, smart_reuse, always_reuse
+          # branch_push_strategy: auto          # Options: immediate, deferred, auto
+          # enable_submodule_branches: true     # Enable if using git submodules
+          
           # Optional: Restrict network access to specific domains only
           # experimental_allowed_domains: |
           #   .anthropic.com

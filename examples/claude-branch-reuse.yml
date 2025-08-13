@@ -1,0 +1,196 @@
+name: Claude Code with Intelligent Branch Reuse
+
+# This example demonstrates how to use Claude Code Action with intelligent
+# branch reuse functionality to minimize redundant branches and improve
+# workflow efficiency.
+#
+# Features demonstrated:
+# - Smart branch reuse based on user intent detection
+# - Multilingual support for branch intent detection
+# - Coordinated branch reuse across main repository and submodules
+# - Different branch reuse strategies for different use cases
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+
+jobs:
+  claude-smart-reuse:
+    # Only run when Claude is mentioned
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude'))
+    
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write        # To create/reuse branches and commit changes
+      pull-requests: write   # To create and comment on PRs
+      issues: write         # To comment on issues
+      id-token: write       # For OIDC token exchange
+      actions: read         # To access workflow information
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch enough history for branch comparison and reuse validation
+          fetch-depth: 50
+          # Include submodules if you use them
+          submodules: recursive
+      
+      - name: Claude Code Action with Smart Branch Reuse
+        uses: anthropics/claude-code-github-action@v1
+        with:
+          # Required: Anthropic API key
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          # Branch Reuse Configuration - This is the key feature!
+          branch_reuse_strategy: smart_reuse     # Options: always_new, smart_reuse, always_reuse
+          branch_push_strategy: auto             # Coordinate with branch reuse
+          
+          # Branch Settings
+          branch_prefix: "claude/"               # Consistent prefix for tracking
+          base_branch: main                      # Base branch for new branches
+          
+          # Submodule Support (works with branch reuse)
+          enable_submodule_branches: true        # Reuse submodule branches too
+          
+          # Mode Configuration
+          mode: tag                              # Use tag mode for @claude mentions
+          trigger_phrase: "@claude"              # Trigger phrase in comments
+          
+          # Enhanced Instructions for Branch Reuse
+          custom_instructions: |
+            # Branch Reuse Behavior Guide
+            
+            This repository uses **intelligent branch reuse** with the following behavior:
+            
+            ## How Branch Reuse Works:
+            
+            ### 🎯 Smart Reuse Mode (Current Setting)
+            - **Reuses existing branches** by default for the same issue
+            - **Creates new branches** only when explicitly requested
+            - Supports multilingual intent detection
+            
+            ### 🔍 User Intent Detection
+            You will automatically detect when users want:
+            
+            **New Branch Requests (English):**
+            - "create a new branch"
+            - "start fresh branch" 
+            - "new feature branch"
+            - "separate branch"
+            - "don't reuse existing branch"
+            
+            **New Branch Requests (中文):**
+            - "新建分支"
+            - "創建新的分支"
+            - "重新開始"
+            - "不要沿用現有分支"
+            
+            **New Branch Requests (日本語):**
+            - "新しいブランチ"
+            - "ブランチを作成"
+            
+            **Branch Reuse Requests:**
+            - "continue on this branch"
+            - "use existing branch"
+            - "reuse current branch"
+            - "繼續使用現有分支"
+            - "沿用這個分支"
+            
+            ### ✅ Branch Validation
+            Before reusing a branch, the system automatically validates:
+            - Branch still exists and is accessible
+            - Not too far behind main branch (< 50 commits)
+            - Not stale (< 30 days since last activity)
+            
+            ### 🔄 Coordination with Submodules
+            When submodules are enabled:
+            - Main repository and submodules use coordinated branch reuse
+            - Submodule branches are automatically discovered and validated
+            - Mixed scenarios (main reused, submodule new) are handled gracefully
+            
+            ### 💡 Optimization Tips
+            - Continue conversations on existing branches for related work
+            - Request new branches explicitly for unrelated features
+            - Branch names follow pattern: claude/issue-{number}-{timestamp}
+            
+            ## Examples:
+            
+            **Will reuse existing branch:**
+            - "Can you also fix the logging issue?"
+            - "Continue working on this feature"
+            - "繼續這個工作"
+            
+            **Will create new branch:**
+            - "Create a new branch for the authentication feature"
+            - "Start a separate branch for this task"
+            - "新建一個分支來處理這個問題"
+        
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Example of always creating new branches (traditional behavior)
+  claude-always-new:
+    if: false  # Disabled by default - enable to compare behaviors
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-github-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          branch_reuse_strategy: always_new      # Traditional behavior
+          custom_instructions: |
+            This instance always creates new branches for every interaction.
+            Compare this with the smart_reuse behavior above to see the difference.
+
+  # Example of always reusing branches (aggressive reuse)
+  claude-always-reuse:
+    if: false  # Disabled by default - enable for specific use cases
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-github-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          branch_reuse_strategy: always_reuse    # Aggressive reuse
+          custom_instructions: |
+            This instance always tries to reuse existing branches when available.
+            New branches are created only when no suitable existing branch is found.
+            Use this mode for projects where branch consolidation is preferred.
+
+# Example of multilingual usage patterns:
+#
+# English:
+# - "@claude can you fix the bug in the login function?"                    → Reuses branch
+# - "@claude create a new branch and implement the search feature"         → Creates new branch
+# - "@claude continue working on the authentication system"                → Reuses branch
+#
+# Chinese:
+# - "@claude 可以修復登入功能的bug嗎？"                                        → 重用分支
+# - "@claude 新建分支並實作搜尋功能"                                           → 建立新分支
+# - "@claude 繼續進行認證系統的工作"                                           → 重用分支
+#
+# Japanese:
+# - "@claude ログイン機能のバグを修正してください"                              → ブランチ再利用
+# - "@claude 新しいブランチを作成して検索機能を実装してください"                → 新ブランチ作成
+# - "@claude 認証システムの作業を続けてください"                              → ブランチ再利用

@@ -13,6 +13,8 @@ import type { GitHubPullRequest } from "../types";
 import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
 import { setupSubmoduleBranches, type SubmoduleBranchInfo } from "./submodule";
+import { findLatestClaudeBranch, validateBranchForReuse, type BranchSearchResult } from "./branch-history";
+import { detectBranchIntentFromComments, getRecommendedBranchStrategy, type BranchIntentResult } from "../utils/intent-detector";
 
 export type BranchInfo = {
   baseBranch: string;
@@ -20,6 +22,11 @@ export type BranchInfo = {
   currentBranch: string;
   submoduleBranches?: SubmoduleBranchInfo[];
   pushStrategy?: "immediate" | "deferred" | "auto";
+  branchReused?: boolean;
+  branchSource?: "new" | "reused" | "error";
+  intentAnalysis?: BranchIntentResult;
+  searchResult?: BranchSearchResult;
+  decisionReason?: string;
 };
 
 /**
@@ -66,12 +73,13 @@ export async function setupBranch(
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
-  const { baseBranch, branchPrefix, useCommitSigning, enableSubmoduleBranches, branchPushStrategy } = context.inputs;
+  const { baseBranch, branchPrefix, useCommitSigning, enableSubmoduleBranches, branchPushStrategy, branchReuseStrategy } = context.inputs;
   const isPR = context.isPR;
   
   // Determine the effective push strategy
   const effectivePushStrategy = determinePushStrategy(branchPushStrategy, useCommitSigning);
   console.log(`🔧 Using ${effectivePushStrategy} push strategy (user setting: ${branchPushStrategy}, commit signing: ${useCommitSigning})`);
+  console.log(`🔄 Using ${branchReuseStrategy} branch reuse strategy`);
 
   if (isPR) {
     const prData = githubData.contextData as GitHubPullRequest;
@@ -128,20 +136,91 @@ export async function setupBranch(
     sourceBranch = repoResponse.data.default_branch;
   }
 
-  // Generate branch name for either an issue or closed/merged PR
-  const entityType = isPR ? "pr" : "issue";
+  // Branch reuse logic for issues (and closed/merged PRs)
+  console.log(`📋 Analyzing branch reuse options for ${isPR ? "PR" : "issue"} #${entityNumber}...`);
+  
+  // Step 1: Detect user intent from comments
+  const intentResult = detectBranchIntentFromComments(
+    githubData.comments,
+    context.actor
+  );
+  console.log(`🎯 Intent analysis: ${intentResult.reason}`);
+  
+  // Step 2: Get recommendation based on intent and configuration
+  const strategyRecommendation = getRecommendedBranchStrategy(intentResult, branchReuseStrategy);
+  console.log(`💡 Strategy recommendation: ${strategyRecommendation.reason}`);
+  
+  // Step 3: Search for existing Claude branches if reuse is considered
+  let searchResult: BranchSearchResult | undefined;
+  let shouldCreateNew = strategyRecommendation.shouldCreateNew;
+  let decisionReason = strategyRecommendation.reason;
+  
+  if (!shouldCreateNew) {
+    console.log(`🔍 Searching for existing Claude branches...`);
+    searchResult = await findLatestClaudeBranch(
+      octokits,
+      owner,
+      repo,
+      entityNumber,
+      githubData.comments,
+      branchPrefix
+    );
+    
+    console.log(`📊 Branch search completed: ${searchResult.totalFound} branches found in ${searchResult.searchTime}ms`);
+    
+    if (searchResult.mainBranch) {
+      console.log(`🎯 Found candidate branch: ${searchResult.mainBranch.branchName}`);
+      
+      // Step 4: Validate the branch for reuse
+      const validation = await validateBranchForReuse(
+        octokits,
+        owner,
+        repo,
+        searchResult.mainBranch.branchName,
+        sourceBranch
+      );
+      
+      if (validation.isValid) {
+        console.log(`✅ Branch validation successful: ${validation.reason}`);
+        decisionReason = `Reusing existing branch: ${validation.reason}`;
+      } else {
+        console.log(`❌ Branch validation failed: ${validation.reason}`);
+        shouldCreateNew = true;
+        decisionReason = `Creating new branch: ${validation.reason}`;
+      }
+    } else {
+      console.log(`🆕 No suitable existing branch found, will create new branch`);
+      shouldCreateNew = true;
+      decisionReason = "No existing Claude branch found for this issue";
+    }
+  }
 
-  // Create Kubernetes-compatible timestamp: lowercase, hyphens only, shorter format
-  const now = new Date();
-  const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+  let newBranch: string;
+  let branchSource: "new" | "reused" | "error";
+  
+  if (!shouldCreateNew && searchResult?.mainBranch) {
+    // Reuse existing branch
+    newBranch = searchResult.mainBranch.branchName;
+    branchSource = "reused";
+    console.log(`♻️ Reusing existing branch: ${newBranch}`);
+  } else {
+    // Create new branch
+    const entityType = isPR ? "pr" : "issue";
+    
+    // Create Kubernetes-compatible timestamp: lowercase, hyphens only, shorter format
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
 
-  // Ensure branch name is Kubernetes-compatible:
-  // - Lowercase only
-  // - Alphanumeric with hyphens
-  // - No underscores
-  // - Max 50 chars (to allow for prefixes)
-  const branchName = `${branchPrefix}${entityType}-${entityNumber}-${timestamp}`;
-  const newBranch = branchName.toLowerCase().substring(0, 50);
+    // Ensure branch name is Kubernetes-compatible:
+    // - Lowercase only
+    // - Alphanumeric with hyphens
+    // - No underscores
+    // - Max 50 chars (to allow for prefixes)
+    const branchName = `${branchPrefix}${entityType}-${entityNumber}-${timestamp}`;
+    newBranch = branchName.toLowerCase().substring(0, 50);
+    branchSource = "new";
+    console.log(`🆕 Creating new branch: ${newBranch}`);
+  }
 
   try {
     // Get the SHA of the source branch to verify it exists
@@ -154,21 +233,31 @@ export async function setupBranch(
     const currentSHA = sourceBranchRef.data.object.sha;
     console.log(`Source branch SHA: ${currentSHA}`);
 
-    // Handle branch creation based on push strategy
+    // Handle branch creation/reuse based on push strategy
     if (effectivePushStrategy === "deferred") {
-      console.log(
-        `Branch name generated: ${newBranch} (will be ${useCommitSigning ? 'created by file ops server on first commit' : 'pushed on first commit'})`,
-      );
+      if (branchSource === "reused") {
+        console.log(`♻️ Checking out existing branch: ${newBranch} (deferred push strategy)`);
+        
+        // Fetch and checkout the existing branch
+        await $`git fetch origin ${newBranch} --depth=1`;
+        await $`git checkout ${newBranch}`;
+        
+        console.log(`✅ Successfully checked out existing branch: ${newBranch}`);
+      } else {
+        console.log(
+          `Branch name generated: ${newBranch} (will be ${useCommitSigning ? 'created by file ops server on first commit' : 'pushed on first commit'})`,
+        );
 
-      // Ensure we're on the source branch
-      console.log(`Fetching and checking out source branch: ${sourceBranch}`);
-      await $`git fetch origin ${sourceBranch} --depth=1`;
-      await $`git checkout ${sourceBranch}`;
-      
-      // For deferred push without commit signing, create the branch locally
-      if (!useCommitSigning) {
-        await $`git checkout -b ${newBranch}`;
-        console.log(`✅ Created local branch ${newBranch} (push deferred until first commit)`);
+        // Ensure we're on the source branch
+        console.log(`Fetching and checking out source branch: ${sourceBranch}`);
+        await $`git fetch origin ${sourceBranch} --depth=1`;
+        await $`git checkout ${sourceBranch}`;
+        
+        // For deferred push without commit signing, create the branch locally
+        if (!useCommitSigning) {
+          await $`git checkout -b ${newBranch}`;
+          console.log(`✅ Created local branch ${newBranch} (push deferred until first commit)`);
+        }
       }
 
       // Set outputs for GitHub Actions
@@ -180,7 +269,15 @@ export async function setupBranch(
       if (enableSubmoduleBranches !== false) {
         try {
           console.log("Setting up submodule branches...");
-          submoduleBranches = await setupSubmoduleBranches(newBranch, sourceBranch, effectivePushStrategy);
+          // Pass the branch source information to submodule setup
+          const submoduleSearchResult = searchResult?.submoduleBranches || [];
+          submoduleBranches = await setupSubmoduleBranches(
+            newBranch, 
+            sourceBranch, 
+            effectivePushStrategy,
+            branchSource,
+            submoduleSearchResult
+          );
           if (submoduleBranches.length > 0) {
             console.log(`✓ Set up branches in ${submoduleBranches.length} submodules`);
           }
@@ -193,33 +290,50 @@ export async function setupBranch(
       return {
         baseBranch: sourceBranch,
         claudeBranch: newBranch,
-        currentBranch: useCommitSigning ? sourceBranch : newBranch,
+        currentBranch: (useCommitSigning && branchSource === "new") ? sourceBranch : newBranch,
         submoduleBranches,
         pushStrategy: effectivePushStrategy,
+        branchReused: branchSource === "reused",
+        branchSource,
+        intentAnalysis: intentResult,
+        searchResult,
+        decisionReason,
       };
     }
 
-    // Immediate push strategy: create branch and push immediately
-    console.log(
-      `Creating and pushing branch ${newBranch} for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
-    );
+    // Immediate push strategy: handle both new and reused branches
+    if (branchSource === "reused") {
+      console.log(`♻️ Checking out existing branch: ${newBranch} (immediate push strategy)`);
+      
+      // Fetch and checkout the existing branch
+      await $`git fetch origin ${newBranch} --depth=1`;
+      await $`git checkout ${newBranch}`;
+      
+      console.log(`✅ Successfully checked out existing branch: ${newBranch}`);
+    } else {
+      // Create new branch and push immediately
+      const entityType = isPR ? "pr" : "issue";
+      console.log(
+        `Creating and pushing branch ${newBranch} for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
+      );
 
-    // Fetch and checkout the source branch first to ensure we branch from the correct base
-    console.log(`Fetching and checking out source branch: ${sourceBranch}`);
-    await $`git fetch origin ${sourceBranch} --depth=1`;
-    await $`git checkout ${sourceBranch}`;
+      // Fetch and checkout the source branch first to ensure we branch from the correct base
+      console.log(`Fetching and checking out source branch: ${sourceBranch}`);
+      await $`git fetch origin ${sourceBranch} --depth=1`;
+      await $`git checkout ${sourceBranch}`;
 
-    // Create and checkout the new branch from the source branch
-    await $`git checkout -b ${newBranch}`;
+      // Create and checkout the new branch from the source branch
+      await $`git checkout -b ${newBranch}`;
 
-    console.log(`✅ Successfully created local branch: ${newBranch}`);
+      console.log(`✅ Successfully created local branch: ${newBranch}`);
 
-    // Push the branch immediately
-    try {
-      await pushBranchToRemote(newBranch);
-    } catch (error) {
-      console.warn(`⚠️ Failed to push main repository branch ${newBranch}, continuing with local branch only`);
-      // Continue execution even if push fails
+      // Push the branch immediately
+      try {
+        await pushBranchToRemote(newBranch);
+      } catch (error) {
+        console.warn(`⚠️ Failed to push main repository branch ${newBranch}, continuing with local branch only`);
+        // Continue execution even if push fails
+      }
     }
 
     // Set outputs for GitHub Actions
@@ -231,7 +345,15 @@ export async function setupBranch(
     if (enableSubmoduleBranches !== false) {
       try {
         console.log("Setting up submodule branches...");
-        submoduleBranches = await setupSubmoduleBranches(newBranch, sourceBranch, effectivePushStrategy);
+        // Pass the branch source information to submodule setup
+        const submoduleSearchResult = searchResult?.submoduleBranches || [];
+        submoduleBranches = await setupSubmoduleBranches(
+          newBranch, 
+          sourceBranch, 
+          effectivePushStrategy,
+          branchSource,
+          submoduleSearchResult
+        );
         if (submoduleBranches.length > 0) {
           console.log(`✓ Set up branches in ${submoduleBranches.length} submodules`);
         }
@@ -247,6 +369,11 @@ export async function setupBranch(
       currentBranch: newBranch,
       submoduleBranches,
       pushStrategy: effectivePushStrategy,
+      branchReused: branchSource === "reused",
+      branchSource,
+      intentAnalysis: intentResult,
+      searchResult,
+      decisionReason,
     };
   } catch (error) {
     console.error("Error in branch setup:", error);

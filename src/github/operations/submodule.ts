@@ -157,12 +157,18 @@ export async function createSubmoduleBranch(
   branchName: string,
   baseBranch?: string,
   pushStrategy: "immediate" | "deferred" = "immediate",
+  branchSource: "new" | "reused" | "error" = "new",
+  submoduleBranchInfo?: { branchName: string; isAvailable: boolean },
   repoDir: string = process.cwd()
 ): Promise<SubmoduleBranchInfo> {
   const submodulePath = join(repoDir, submodule.path);
   
   try {
-    console.log(`🔧 Creating branch ${branchName} in submodule ${submodule.name}...`);
+    if (branchSource === "reused" && submoduleBranchInfo?.isAvailable) {
+      console.log(`♻️ Reusing existing branch ${branchName} in submodule ${submodule.name} based on branch reuse strategy...`);
+    } else {
+      console.log(`🔧 Creating branch ${branchName} in submodule ${submodule.name}...`);
+    }
     
     // Ensure we're in the submodule directory
     if (!existsSync(submodulePath)) {
@@ -179,12 +185,34 @@ export async function createSubmoduleBranch(
       throw new Error(errorMsg);
     }
     
-    // Check if branch already exists
+    // Handle branch reuse logic
+    if (branchSource === "reused" && submoduleBranchInfo?.isAvailable) {
+      // For branch reuse, check out the existing branch
+      try {
+        console.log(`♻️ Checking out existing branch ${branchName} for reuse...`);
+        await $`git fetch origin ${branchName}`.cwd(submodulePath);
+        await $`git checkout ${branchName}`.cwd(submodulePath);
+        console.log(`✓ Successfully checked out existing branch ${branchName} in submodule ${submodule.name}`);
+        
+        return {
+          submodule,
+          branchName,
+          created: false,
+          pushed: false, // Branch already exists, no need to push
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.warn(`⚠️ Failed to checkout existing branch ${branchName}, falling back to creation: ${errorMessage}`);
+        // Fall through to branch creation logic
+      }
+    }
+    
+    // Check if branch already exists locally (for new branch creation)
     try {
       await $`git rev-parse --verify ${branchName}`.cwd(submodulePath);
-      console.log(`⚠️ Branch ${branchName} already exists in submodule ${submodule.name}, checking out...`);
+      console.log(`⚠️ Branch ${branchName} already exists locally in submodule ${submodule.name}, checking out...`);
       await $`git checkout ${branchName}`.cwd(submodulePath);
-      console.log(`✓ Checked out existing branch ${branchName} in submodule ${submodule.name}`);
+      console.log(`✓ Checked out existing local branch ${branchName} in submodule ${submodule.name}`);
       
       // Handle push based on strategy
       let pushed = false;
@@ -328,6 +356,11 @@ export async function setupSubmoduleBranches(
   branchName: string,
   baseBranch?: string,
   pushStrategy: "immediate" | "deferred" = "immediate",
+  branchSource: "new" | "reused" | "error" = "new",
+  submoduleSearchResult: Array<{
+    submoduleName: string;
+    branch?: { branchName: string; isAvailable: boolean };
+  }> = [],
   repoDir: string = process.cwd()
 ): Promise<SubmoduleBranchInfo[]> {
   try {
@@ -352,16 +385,29 @@ export async function setupSubmoduleBranches(
       return [];
     }
     
-    console.log(`📋 Found ${submodules.length} submodules, creating branches with ${pushStrategy} push strategy...`);
+    console.log(`📋 Found ${submodules.length} submodules, ${branchSource === "reused" ? "reusing" : "creating"} branches with ${pushStrategy} push strategy...`);
     submodules.forEach(sub => {
       console.log(`  - ${sub.name}: ${sub.url} (path: ${sub.path})`);
     });
     
-    // Create branches in parallel for better performance
+    // Create or reuse branches in parallel for better performance
     const branchResults = await Promise.all(
-      submodules.map(submodule => 
-        createSubmoduleBranch(submodule, branchName, baseBranch, pushStrategy, repoDir)
-      )
+      submodules.map(submodule => {
+        // Find corresponding submodule branch info from search results
+        const submoduleBranchInfo = submoduleSearchResult.find(
+          result => result.submoduleName === submodule.name
+        )?.branch;
+        
+        return createSubmoduleBranch(
+          submodule, 
+          branchName, 
+          baseBranch, 
+          pushStrategy, 
+          branchSource,
+          submoduleBranchInfo,
+          repoDir
+        );
+      })
     );
     
     // Log results
@@ -372,8 +418,15 @@ export async function setupSubmoduleBranches(
     if (successful.length > 0) {
       console.log("✓ Successful submodules:");
       successful.forEach(result => {
-        const status = result.created ? '🆕 created' : '♻️ already exists';
-        console.log(`  - ${result.submodule.name}: ${status} branch '${result.branchName}'`);
+        let status: string;
+        if (branchSource === "reused" && !result.created) {
+          status = '♻️ reused existing branch';
+        } else if (result.created) {
+          status = '🆕 created new branch';
+        } else {
+          status = '♻️ used existing local branch';
+        }
+        console.log(`  - ${result.submodule.name}: ${status} '${result.branchName}'`);
       });
     }
     

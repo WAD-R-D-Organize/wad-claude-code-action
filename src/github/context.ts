@@ -80,6 +80,7 @@ type BaseContext = {
     allowedBots: string;
     enableSubmoduleBranches: boolean;
     branchPushStrategy: "immediate" | "deferred" | "auto";
+    branchReuseStrategy: "always_new" | "smart_reuse" | "always_reuse";
   };
 };
 
@@ -142,6 +143,7 @@ export function parseGitHubContext(): GitHubContext {
       allowedBots: process.env.ALLOWED_BOTS ?? "",
       enableSubmoduleBranches: process.env.ENABLE_SUBMODULE_BRANCHES !== "false",
       branchPushStrategy: (process.env.BRANCH_PUSH_STRATEGY as "immediate" | "deferred" | "auto") ?? "auto",
+      branchReuseStrategy: (process.env.BRANCH_REUSE_STRATEGY as "always_new" | "smart_reuse" | "always_reuse") ?? "smart_reuse",
     },
   };
 
