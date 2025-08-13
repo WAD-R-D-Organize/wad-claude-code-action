@@ -383,6 +383,92 @@ Issue #456: "Fix payment processing bugs"
 
 ---
 
+## Commit 3: 最新更新 - 新Issue強制創建分支策略
+
+### 🎯 分支策略優化
+
+#### 21. 新Issue分支創建規則
+**文件：** `src/github/operations/branch.ts`
+
+**核心改進：**
+- **新Issue檢測：** 新增 `context.eventName === "issues" && context.eventAction === "opened"` 檢測邏輯
+- **強制分支創建：** 全新Issue一律跳過所有重用邏輯，直接創建新分支
+- **完整流程支援：** 支援所有推送策略（immediate、deferred、auto）和子模組分支創建
+
+**實作細節：**
+```typescript
+// 新Issue檢測邏輯
+const isNewIssue = context.eventName === "issues" && context.eventAction === "opened";
+if (isNewIssue && !isPR) {
+  console.log(`🆕 New issue detected (#${entityNumber}), forcing new branch creation`);
+  // 跳過所有重用邏輯，直接創建新分支
+  // 完整的分支創建、推送和子模組處理流程
+}
+```
+
+**行為變更：**
+- **新Issue事件** (`issues.opened`): 一律創建新分支，跳過意圖檢測和歷史搜索
+- **Issue評論事件** (`issue_comment`): 繼續按照配置的分支重用策略執行
+- **Pull Request**: 行為保持不變
+- **子模組同步**: 新Issue也會自動創建對應的子模組分支
+
+#### 22. 提示系統更新
+**文件：** `src/create-prompt/index.ts`
+
+**文件更新：**
+- 新增特殊規則說明：「Brand new Issues (just opened) ALWAYS create new branches」
+- 更新意圖檢測說明：明確指出僅適用於「subsequent comments in existing Issues」
+- 保持多語言支援的完整說明
+
+**更新後的提示內容：**
+```
+BRANCH REUSE BEHAVIOR:
+SPECIAL RULE: Brand new Issues (just opened) ALWAYS create new branches regardless of the reuse strategy.
+
+INTENT DETECTION FOR BRANCH CREATION (applies to subsequent comments in existing Issues):
+When users explicitly request NEW branches (any language):
+• English: "create a new branch", "start fresh branch"...
+• 中文: "新建分支", "創建新的分支"...
+[保持原有的多語言支援說明]
+```
+
+#### 23. 類型安全性修正
+**文件：** `src/modes/tag/index.ts`
+
+**技術修正：**
+- 修正分支協調函數的類型轉換問題
+- 確保 `branchInfo.pushStrategy` 正確轉換為 `"immediate" | "deferred"` 類型
+- 保持向後兼容性
+
+### 🔄 實際使用場景更新
+
+#### 場景更新：新Issue行為
+```
+Issue #789: 新建Issue "實現新的用戶權限系統"
+
+步驟1: 用戶創建Issue並指派給Claude
+→ 系統檢測: isNewIssue = true
+→ 強制行為: 創建 claude/issue-789-20240813-1500
+→ 跳過: 所有意圖檢測和分支搜索邏輯
+
+步驟2: 後續在同一Issue中評論 "@claude 繼續這個功能"  
+→ 系統檢測: isNewIssue = false
+→ 智能行為: 按照 branch_reuse_strategy 執行
+→ 結果: 重用 claude/issue-789-20240813-1500 (如為 smart_reuse)
+
+步驟3: 在同一Issue中評論 "@claude 新建分支處理管理員功能"
+→ 意圖檢測: 檢測到「新建分支」要求
+→ 智能行為: 創建 claude/issue-789-20240813-1530
+```
+
+#### 場景優勢：
+- **一致性保證**: 每個新Issue必定有專屬的新分支
+- **靈活性維持**: 後續互動仍可透過意圖檢測調整策略  
+- **簡化邏輯**: 使用者不需要擔心新Issue的分支創建問題
+- **子模組協調**: 新Issue的子模組分支創建完全自動化
+
+---
+
 ## 🔮 後續發展方向
 
 ### 短期改進 (1-2週)

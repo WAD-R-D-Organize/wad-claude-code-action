@@ -139,6 +139,124 @@ export async function setupBranch(
   // Branch reuse logic for issues (and closed/merged PRs)
   console.log(`📋 Analyzing branch reuse options for ${isPR ? "PR" : "issue"} #${entityNumber}...`);
   
+  // Check if this is a brand new issue - new issues always get new branches
+  const isNewIssue = context.eventName === "issues" && context.eventAction === "opened";
+  if (isNewIssue && !isPR) {
+    console.log(`🆕 New issue detected (#${entityNumber}), forcing new branch creation`);
+    // Skip all reuse logic for new issues - always create new branch
+    // Force shouldCreateNew to true and bypass all intent detection and search logic
+    const entityType = "issue";
+    
+    // Create Kubernetes-compatible timestamp: lowercase, hyphens only, shorter format
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+
+    // Ensure branch name is Kubernetes-compatible
+    const branchName = `${branchPrefix}${entityType}-${entityNumber}-${timestamp}`;
+    const newBranch = branchName.toLowerCase().substring(0, 50);
+    
+    console.log(`🆕 Creating new branch for new issue: ${newBranch}`);
+    
+    // Jump directly to the branch creation logic
+    try {
+      // Get the SHA of the source branch to verify it exists
+      const sourceBranchRef = await octokits.rest.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${sourceBranch}`,
+      });
+
+      const currentSHA = sourceBranchRef.data.object.sha;
+      console.log(`Source branch SHA: ${currentSHA}`);
+
+      // Handle branch creation based on push strategy
+      if (effectivePushStrategy === "deferred") {
+        console.log(
+          `Branch name generated: ${newBranch} (will be ${useCommitSigning ? 'created by file ops server on first commit' : 'pushed on first commit'})`,
+        );
+
+        // Ensure we're on the source branch
+        console.log(`Fetching and checking out source branch: ${sourceBranch}`);
+        await $`git fetch origin ${sourceBranch} --depth=1`;
+        await $`git checkout ${sourceBranch}`;
+        
+        // For deferred push without commit signing, create the branch locally
+        if (!useCommitSigning) {
+          await $`git checkout -b ${newBranch}`;
+          console.log(`✅ Created local branch ${newBranch} (push deferred until first commit)`);
+        }
+      } else {
+        // Create new branch and push immediately
+        console.log(
+          `Creating and pushing branch ${newBranch} for new issue #${entityNumber} from source branch: ${sourceBranch}...`,
+        );
+
+        // Fetch and checkout the source branch first to ensure we branch from the correct base
+        console.log(`Fetching and checking out source branch: ${sourceBranch}`);
+        await $`git fetch origin ${sourceBranch} --depth=1`;
+        await $`git checkout ${sourceBranch}`;
+
+        // Create and checkout the new branch from the source branch
+        await $`git checkout -b ${newBranch}`;
+
+        console.log(`✅ Successfully created local branch: ${newBranch}`);
+
+        // Push the branch immediately
+        try {
+          await pushBranchToRemote(newBranch);
+        } catch (error) {
+          console.warn(`⚠️ Failed to push main repository branch ${newBranch}, continuing with local branch only`);
+          // Continue execution even if push fails
+        }
+      }
+
+      // Set outputs for GitHub Actions
+      core.setOutput("CLAUDE_BRANCH", newBranch);
+      core.setOutput("BASE_BRANCH", sourceBranch);
+
+      // Setup submodule branches if enabled
+      let submoduleBranches: SubmoduleBranchInfo[] = [];
+      if (enableSubmoduleBranches !== false) {
+        try {
+          console.log("Setting up submodule branches...");
+          submoduleBranches = await setupSubmoduleBranches(
+            newBranch, 
+            sourceBranch, 
+            effectivePushStrategy,
+            "new",
+            [] // No submodule search results for new issues
+          );
+          if (submoduleBranches.length > 0) {
+            console.log(`✓ Set up branches in ${submoduleBranches.length} submodules`);
+          }
+        } catch (error) {
+          console.warn("Failed to setup submodule branches:", error);
+          // Don't fail the entire process for submodule errors
+        }
+      }
+
+      return {
+        baseBranch: sourceBranch,
+        claudeBranch: newBranch,
+        currentBranch: (useCommitSigning && effectivePushStrategy === "deferred") ? sourceBranch : newBranch,
+        submoduleBranches,
+        pushStrategy: effectivePushStrategy,
+        branchReused: false,
+        branchSource: "new" as const,
+        intentAnalysis: {
+          wantsNewBranch: true,
+          confidence: 1.0,
+          matchedPatterns: ["system: new issue detection"],
+          reason: "New issue always creates new branch"
+        },
+        decisionReason: "New issue - always create new branch",
+      };
+    } catch (error) {
+      console.error("Error creating branch for new issue:", error);
+      process.exit(1);
+    }
+  }
+  
   // Step 1: Detect user intent from comments
   const intentResult = detectBranchIntentFromComments(
     githubData.comments,

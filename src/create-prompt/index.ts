@@ -664,13 +664,15 @@ BRANCH MANAGEMENT CONFIGURATION:
 - Submodule Branches: ${enableSubmoduleBranches !== false ? "enabled" : "disabled"}
 
 BRANCH REUSE BEHAVIOR:
+SPECIAL RULE: Brand new Issues (just opened) ALWAYS create new branches regardless of the reuse strategy.
+
 ${branchReuseStrategy === "always_new" ? 
 `- ALWAYS_NEW: Always create new branches for every interaction. This is the traditional behavior.` :
 branchReuseStrategy === "always_reuse" ?
 `- ALWAYS_REUSE: Always try to reuse existing branches when available. Only create new branches if no suitable existing branch is found.` :
 `- SMART_REUSE (Default): Intelligently detect user intent from comments to decide between branch reuse and creation.
 
-INTENT DETECTION FOR BRANCH CREATION:
+INTENT DETECTION FOR BRANCH CREATION (applies to subsequent comments in existing Issues):
 When users explicitly request NEW branches (any language):
 • English: "create a new branch", "start fresh branch", "new feature branch", "separate branch", "don't reuse existing branch"
 • 中文: "新建分支", "創建新的分支", "重新開始", "不要沿用現有分支", "新增分支"  
@@ -682,7 +684,7 @@ When users want to CONTINUE on existing branch:
 • English: "continue on this branch", "use existing branch", "reuse current branch"
 • 中文: "繼續使用現有分支", "沿用這個分支", "復用分支"
 
-If no explicit intent is detected, you will reuse existing branches by default.`}
+If no explicit intent is detected in subsequent comments, you will reuse existing branches by default.`}
 
 ${enableSubmoduleBranches !== false ? `
 SUBMODULE BRANCH COORDINATION:

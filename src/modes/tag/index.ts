@@ -107,8 +107,8 @@ export const tagMode: Mode = {
           branchInfo.claudeBranch,
           branchInfo.submoduleBranches,
           {
-            mainRepoPushStrategy: branchInfo.pushStrategy || "immediate",
-            submodulePushStrategy: branchInfo.pushStrategy || "immediate",
+            mainRepoPushStrategy: (branchInfo.pushStrategy as "immediate" | "deferred") || "immediate",
+            submodulePushStrategy: (branchInfo.pushStrategy as "immediate" | "deferred") || "immediate",
             timeout: 60000, // 1 minute timeout
           }
         );
