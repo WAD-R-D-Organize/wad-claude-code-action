@@ -257,6 +257,9 @@ export async function setupBranch(
     }
   }
   
+  // Simplified logic: Issue-specific branch reuse for existing issues
+  console.log(`📋 Applying simplified branch reuse logic for issue #${entityNumber}...`);
+  
   // Step 1: Detect user intent from comments
   const intentResult = detectBranchIntentFromComments(
     githubData.comments,
@@ -268,13 +271,13 @@ export async function setupBranch(
   const strategyRecommendation = getRecommendedBranchStrategy(intentResult, branchReuseStrategy);
   console.log(`💡 Strategy recommendation: ${strategyRecommendation.reason}`);
   
-  // Step 3: Search for existing Claude branches if reuse is considered
   let searchResult: BranchSearchResult | undefined;
   let shouldCreateNew = strategyRecommendation.shouldCreateNew;
   let decisionReason = strategyRecommendation.reason;
   
+  // Step 3: Only search for branches if user didn't explicitly request a new branch
   if (!shouldCreateNew) {
-    console.log(`🔍 Searching for existing Claude branches...`);
+    console.log(`🔍 Searching for existing branches in THIS issue (#${entityNumber}) only...`);
     searchResult = await findLatestClaudeBranch(
       octokits,
       owner,
@@ -284,12 +287,12 @@ export async function setupBranch(
       branchPrefix
     );
     
-    console.log(`📊 Branch search completed: ${searchResult.totalFound} branches found in ${searchResult.searchTime}ms`);
+    console.log(`📊 Branch search completed: ${searchResult.totalFound} total branches, looking specifically for issue-${entityNumber} branches`);
     
     if (searchResult.mainBranch) {
-      console.log(`🎯 Found candidate branch: ${searchResult.mainBranch.branchName}`);
+      console.log(`🎯 Found candidate branch for this issue: ${searchResult.mainBranch.branchName}`);
       
-      // Step 4: Validate the branch for reuse
+      // Step 4: Validate the branch for reuse (with more lenient criteria for same-issue branches)
       const validation = await validateBranchForReuse(
         octokits,
         owner,
@@ -300,27 +303,31 @@ export async function setupBranch(
       
       if (validation.isValid) {
         console.log(`✅ Branch validation successful: ${validation.reason}`);
-        decisionReason = `Reusing existing branch: ${validation.reason}`;
+        decisionReason = `Reusing existing branch from this issue: ${validation.reason}`;
       } else {
         console.log(`❌ Branch validation failed: ${validation.reason}`);
         shouldCreateNew = true;
-        decisionReason = `Creating new branch: ${validation.reason}`;
+        decisionReason = `Creating new branch: existing branch not suitable (${validation.reason})`;
       }
     } else {
-      console.log(`🆕 No suitable existing branch found, will create new branch`);
+      console.log(`🆕 No existing branches found for this issue (#${entityNumber}), will create new branch`);
       shouldCreateNew = true;
-      decisionReason = "No existing Claude branch found for this issue";
+      decisionReason = "No existing Claude branch found for this specific issue";
     }
+  } else {
+    console.log(`🆕 User explicitly requested new branch or strategy forces new branch creation`);
   }
 
   let newBranch: string;
   let branchSource: "new" | "reused" | "error";
   
+  // Final decision and logging
   if (!shouldCreateNew && searchResult?.mainBranch) {
-    // Reuse existing branch
+    // Reuse existing branch from this issue
     newBranch = searchResult.mainBranch.branchName;
     branchSource = "reused";
-    console.log(`♻️ Reusing existing branch: ${newBranch}`);
+    console.log(`♻️ DECISION: Reusing existing branch from issue #${entityNumber}: ${newBranch}`);
+    console.log(`📋 Reason: ${decisionReason}`);
   } else {
     // Create new branch
     const entityType = isPR ? "pr" : "issue";
@@ -337,7 +344,8 @@ export async function setupBranch(
     const branchName = `${branchPrefix}${entityType}-${entityNumber}-${timestamp}`;
     newBranch = branchName.toLowerCase().substring(0, 50);
     branchSource = "new";
-    console.log(`🆕 Creating new branch: ${newBranch}`);
+    console.log(`🆕 DECISION: Creating new branch for issue #${entityNumber}: ${newBranch}`);
+    console.log(`📋 Reason: ${decisionReason}`);
   }
 
   try {

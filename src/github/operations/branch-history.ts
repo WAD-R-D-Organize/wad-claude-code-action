@@ -231,15 +231,26 @@ export async function findLatestClaudeBranch(
       }
     }
 
-    // Filter branches related to this issue (by entity number)
+    // Filter branches related to this specific issue (by entity number)
+    // ONLY look for branches that belong to this exact issue - no fallback to other issues
     const issueBranches = Array.from(allBranches.values()).filter(branch => {
-      // Check if branch name contains the issue/PR number
+      // Check if branch name contains the issue/PR number in the expected format
       const numberPattern = new RegExp(`\\b(?:issue|pr)-${entityNumber}\\b`, 'i');
       return numberPattern.test(branch.branchName);
     });
 
-    // If no issue-specific branches found, consider all Claude branches
-    const candidateBranches = issueBranches.length > 0 ? issueBranches : Array.from(allBranches.values());
+    console.log(`🔍 Found ${issueBranches.length} branches for this specific issue (#${entityNumber})`);
+    if (issueBranches.length > 0) {
+      console.log(`📝 Issue-specific branches found:`);
+      issueBranches.forEach((branch, index) => {
+        console.log(`  ${index + 1}. ${branch.branchName} (available: ${branch.isAvailable})`);
+      });
+    } else {
+      console.log(`📝 No issue-specific branches found for issue #${entityNumber}`);
+    }
+    
+    // Only use issue-specific branches - do NOT fall back to other Claude branches
+    const candidateBranches = issueBranches;
 
     // Sort by availability and recency
     const sortedBranches = candidateBranches
@@ -378,8 +389,8 @@ export async function validateBranchForReuse(
       const commitsBehind = comparison.data.behind_by || 0;
       const lastActivity = branchExists.lastCommitAt;
       
-      // Consider branch too old if it's more than 50 commits behind
-      if (commitsBehind > 50) {
+      // Consider branch too old if it's more than 200 commits behind (more lenient for same-issue branches)
+      if (commitsBehind > 200) {
         return {
           isValid: false,
           reason: `Branch is ${commitsBehind} commits behind ${baseBranch}`,
@@ -388,10 +399,10 @@ export async function validateBranchForReuse(
         };
       }
       
-      // Consider branch stale if no activity for more than 30 days
+      // Consider branch stale if no activity for more than 90 days (more lenient for ongoing issues)
       if (lastActivity) {
         const daysSinceActivity = (Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSinceActivity > 30) {
+        if (daysSinceActivity > 90) {
           return {
             isValid: false,
             reason: `Branch is stale (${Math.round(daysSinceActivity)} days since last activity)`,
