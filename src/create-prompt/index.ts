@@ -844,7 +844,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
         ? `
       MAIN REPOSITORY PR LINK:
       - Provide a URL to create a PR manually in this format:
-        [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
+        [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>&assignees=${context.triggerUsername || ""})
       - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
         Example: ${GITHUB_SERVER_URL}/${context.repository}/compare/main...feature-branch (correct)
         NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
@@ -854,7 +854,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - The branch-name is the current branch: ${eventData.claudeBranch}
       - The body should include:
         - A clear description of the changes
-        - Reference to the original ${eventData.isPR ? "PR" : "issue"}
+        - ${eventData.isPR ? `Reference to the original PR: "Related to #${eventData.prNumber || "[PR number]"}"` : `Auto-close reference: "Closes #${eventData.issueNumber || "[issue number]"}" (this will automatically close the issue when PR is merged)`}
         - The signature: "Generated with [Claude Code](https://claude.ai/code)"
       - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"
       ${
@@ -873,10 +873,14 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
         1. Check which submodules have changes: Bash(git submodule status)
         2. For each submodule with changes, get the remote URL: Bash(cd <submodule-path> && git remote get-url origin)
         3. Create a PR link for each modified submodule in this format:
-           [Create PR for <submodule-name>](<submodule-github-url>/compare/${eventData.baseBranch}...<submodule-branch>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
-        4. Use the same URL encoding rules as the main repository
-        5. The submodule branch name should match the main branch: ${eventData.claudeBranch}
-        6. Example format for submodule PR links:
+           [Create PR for <submodule-name>](<submodule-github-url>/compare/${eventData.baseBranch}...<submodule-branch>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>&assignees=${context.triggerUsername || ""})
+        4. The submodule PR body should include:
+           - A clear description of what was changed in the submodule
+           - Reference to the original ${eventData.isPR ? "PR" : "issue"}: "Related to ${context.repository}#${eventData.isPR ? eventData.prNumber || "[PR number]" : eventData.issueNumber || "[issue number]"}"
+           - The signature: "Generated with [Claude Code](https://claude.ai/code)"
+        5. Use the same URL encoding rules as the main repository
+        6. The submodule branch name should match the main branch: ${eventData.claudeBranch}
+        7. Example format for submodule PR links:
            [Create PR for libs/shared](https://github.com/owner/shared-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
            [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
       - After pushing all changes, generate PR links for ALL modified submodules using the format above
