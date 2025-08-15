@@ -839,7 +839,6 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Follow the same pushing strategy as for straightforward changes (see section B above).
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
 
-
    D. Update Metadata Based on Implementation:${
       manageIssueMetadata &&
       !eventData.isPR &&
