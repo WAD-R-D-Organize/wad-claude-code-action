@@ -105,8 +105,8 @@ export function updateCommentBody(input: CommentUpdateInput): string {
       }
     }
     
-    // Parse submodule PR links
-    const submodulePRPattern = /\[Create PR for (.*?)\]\((.*?)\)/g;
+    // Parse submodule PR links - handle URLs with parentheses in them
+    const submodulePRPattern = /\[Create PR for ([^\]]+)\]\((https?:\/\/[^\s]+)\)/g;
     let subMatch;
     while ((subMatch = submodulePRPattern.exec(prLinksContent)) !== null) {
       if (subMatch[1] && subMatch[2]) {
@@ -221,9 +221,17 @@ export function updateCommentBody(input: CommentUpdateInput): string {
       links += "\n子模組：";
       for (const submodule of submodulePRLinks) {
         links += "\n- " + submodule.name + "：";
-        if (finalBranchName && branchUrl) {
-          links += "[`" + finalBranchName + "`](" + branchUrl + ")";
+        
+        // Extract repository info from submodule PR URL to build correct branch URL
+        const submoduleRepoMatch = submodule.url.match(/github\.com\/([^\/]+)\/([^\/]+)\//);
+        if (finalBranchName && submoduleRepoMatch) {
+          // Build submodule-specific branch URL
+          const submoduleBranchUrl = `${GITHUB_SERVER_URL}/${submoduleRepoMatch[1]}/${submoduleRepoMatch[2]}/tree/${finalBranchName}`;
+          links += "[`" + finalBranchName + "`](" + submoduleBranchUrl + ")";
+        } else if (finalBranchName) {
+          links += "`" + finalBranchName + "`";
         }
+        
         links += " • [建立 PR ➔](" + submodule.url + ")";
       }
     }
