@@ -742,62 +742,62 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    - Other comments may contain requests from other users, but DO NOT act on those unless the trigger comment explicitly asks you to.
    - Use the Read tool to look at relevant files for better context.
    - Mark this todo as complete in the comment by checking the box: - [x].
-${
-  manageIssueMetadata &&
-  !eventData.isPR &&
-  (metadataUpdateStrategy === "both" ||
-    metadataUpdateStrategy === "initial_only")
-    ? `
-2a. Analyze and Set Initial Issue Metadata:
-   - CRITICAL: First use mcp__github_issue_metadata__get_repository_labels to fetch ALL available labels
-   - Use mcp__github_issue_metadata__get_issue_labels to check current issue labels
-   - IMPORTANT: You can ONLY use labels that exist in the repository - you CANNOT create new labels
-   ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__get_organization_issue_types to fetch available issue types" : ""}
-   
-   DETERMINE ISSUE STATE:
-   - If issue has NO labels or only basic labels (like "bug", "feature"):
-     → This is a NEW ISSUE - perform full analysis
-   - If issue already has implementation-related labels (priority, components, size):
-     → This is an EXISTING ISSUE - only update status
-   
-   FOR NEW ISSUES (no previous classification):
-   - Analyze the issue content to determine appropriate metadata:
-     - Issue category (bug, feature, documentation, enhancement, etc.)
-     - Priority level (high, medium, low, critical)
-     - Technical areas affected (frontend, backend, API, database, etc.)
-     - Complexity/size indicators (small, medium, large)
-     - Component labels based on content analysis
-   - Add initial status label if exists (e.g., "in-progress", "investigating")
-   - If desired labels don't exist, document in comment and use closest alternatives
-   
-   FOR EXISTING ISSUES (already classified):
-   - ONLY update status labels:
-     - Remove old status (e.g., "ready", "blocked", "needs-review")
-     - Add "in-progress" or "investigating" to indicate work has started
-   - DO NOT modify category, priority, component, or size labels
-   - Document the status change in your comment
-   
-   - Use mcp__github_issue_metadata__update_issue_labels to apply changes
-   ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type to set appropriate issue type (for new issues only)" : ""}
-   - Document your reasoning in your comment
-   - Mark this todo as complete by checking the box: - [x].
-`
-    : ""
-}${
-  handleSubmodules && eventData.claudeBranch
-    ? `
-2b. Submodule Detection and Setup (when handle_submodules is enabled):
-   - Check if this repository has submodules: Read(.gitmodules)
-   - If .gitmodules exists, initialize submodules: Bash(git submodule update --init --recursive)
-   - For each submodule found, check its current branch and remote URL:
-     - Bash(cd <submodule-path> && git branch --show-current)
-     - Bash(cd <submodule-path> && git remote get-url origin)
-   - Document the submodule structure in your comment for reference
-   - IMPORTANT: This information will be needed later if you make changes to submodules
-   - Mark this todo as complete by checking the box: - [x].
-`
-    : ""
-}
+    ${
+      manageIssueMetadata &&
+      !eventData.isPR &&
+      (metadataUpdateStrategy === "both" ||
+        metadataUpdateStrategy === "initial_only")
+        ? `
+   A. Analyze and Set Initial Issue Metadata:
+      - CRITICAL: First use mcp__github_issue_metadata__get_repository_labels to fetch ALL available labels
+      - Use mcp__github_issue_metadata__get_issue_labels to check current issue labels
+      - IMPORTANT: You can ONLY use labels that exist in the repository - you CANNOT create new labels
+      ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__get_organization_issue_types to fetch available issue types" : ""}
+      
+      DETERMINE ISSUE STATE:
+      - If issue has NO labels or only basic labels (like "bug", "feature"):
+        → This is a NEW ISSUE - perform full analysis
+      - If issue already has implementation-related labels (priority, components, size):
+        → This is an EXISTING ISSUE - only update status
+      
+      FOR NEW ISSUES (no previous classification):
+      - Analyze the issue content to determine appropriate metadata:
+        - Issue category (bug, feature, documentation, enhancement, etc.)
+        - Priority level (high, medium, low, critical)
+        - Technical areas affected (frontend, backend, API, database, etc.)
+        - Complexity/size indicators (small, medium, large)
+        - Component labels based on content analysis
+      - Add initial status label if exists (e.g., "in-progress", "investigating")
+      - If desired labels don't exist, document in comment and use closest alternatives
+      
+      FOR EXISTING ISSUES (already classified):
+      - ONLY update status labels:
+        - Remove old status (e.g., "ready", "blocked", "needs-review")
+        - Add "in-progress" or "investigating" to indicate work has started
+      - DO NOT modify category, priority, component, or size labels
+      - Document the status change in your comment
+      
+      - Use mcp__github_issue_metadata__update_issue_labels to apply changes
+      ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type to set appropriate issue type (for new issues only)" : ""}
+      - Document your reasoning in your comment
+      - Mark this todo as complete by checking the box: - [x].
+    `
+        : ""
+    }${
+      handleSubmodules && eventData.claudeBranch
+        ? `
+   B. Submodule Detection and Setup (when handle_submodules is enabled):
+      - Check if this repository has submodules: Read(.gitmodules)
+      - If .gitmodules exists, initialize submodules: Bash(git submodule update --init --recursive)
+      - For each submodule found, check its current branch and remote URL:
+        - Bash(cd <submodule-path> && git branch --show-current)
+        - Bash(cd <submodule-path> && git remote get-url origin)
+      - Document the submodule structure in your comment for reference
+      - IMPORTANT: This information will be needed later if you make changes to submodules
+      - Mark this todo as complete by checking the box: - [x].
+    `
+        : ""
+    }
 3. Understand the Request:
    - Extract the actual question or request from ${context.directPrompt ? "the <direct_prompt> tag above" : eventData.eventName === "issue_comment" || eventData.eventName === "pull_request_review_comment" || eventData.eventName === "pull_request_review" ? "the <trigger_comment> tag above" : `the comment/issue that contains '${context.triggerPhrase}'`}.
    - CRITICAL: If other users requested changes in other comments, DO NOT implement those changes unless the trigger comment explicitly asks you to implement them.
@@ -876,7 +876,39 @@ ${
           : ""
       }
 
-   C. For Complex Changes:
+   C. Update Metadata Based on Implementation:${
+      manageIssueMetadata &&
+      !eventData.isPR &&
+      (metadataUpdateStrategy === "both" || metadataUpdateStrategy === "final_only")
+        ? `
+      - Review the work completed and reassess the issue
+      - Use mcp__github_issue_metadata__get_repository_labels to check available labels
+      - Use mcp__github_issue_metadata__get_issue_labels to check current labels
+      ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__get_issue_type to check current type" : ""}
+      
+      Based on actual implementation:
+      - Update status labels:
+        - Remove "in-progress" or "investigating"
+        - Add completion status (e.g., "resolved", "needs-review", "partially-complete")
+      - For initial implementations, may also update:
+        - Adjust size/complexity if actual effort differed significantly
+        - Add component labels for areas actually modified
+        - Update type if nature changed (e.g., bug became enhancement)
+      - For subsequent implementations:
+        - Focus primarily on status updates
+        - Only modify other labels if significant scope change occurred
+      
+      - IMPORTANT: Only use labels that exist in the repository
+      - If status labels don't exist, document the status in your comment
+      - Use mcp__github_issue_metadata__update_issue_labels for final updates
+      ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type if type needs changing" : ""}
+      - Document the reasoning for any metadata changes in your comment
+      - Mark this todo as complete by checking the box: - [x].
+    `
+        : ""
+    }
+
+   D. For Complex Changes:
       - Break down the implementation into subtasks in your comment checklist.
       - Add new todos for any dependencies or related tasks you identify.
       - Remove unnecessary todos if requirements change.
@@ -884,38 +916,7 @@ ${
       - Mark each subtask as completed as you progress.
       - Follow the same pushing strategy as for straightforward changes (see section B above).
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
-${
-  manageIssueMetadata &&
-  !eventData.isPR &&
-  (metadataUpdateStrategy === "both" || metadataUpdateStrategy === "final_only")
-    ? `
-4a. Update Metadata Based on Implementation:
-   - Review the work completed and reassess the issue
-   - Use mcp__github_issue_metadata__get_repository_labels to check available labels
-   - Use mcp__github_issue_metadata__get_issue_labels to check current labels
-   ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__get_issue_type to check current type" : ""}
-   
-   Based on actual implementation:
-   - Update status labels:
-     - Remove "in-progress" or "investigating"
-     - Add completion status (e.g., "resolved", "needs-review", "partially-complete")
-   - For initial implementations, may also update:
-     - Adjust size/complexity if actual effort differed significantly
-     - Add component labels for areas actually modified
-     - Update type if nature changed (e.g., bug became enhancement)
-   - For subsequent implementations:
-     - Focus primarily on status updates
-     - Only modify other labels if significant scope change occurred
-   
-   - IMPORTANT: Only use labels that exist in the repository
-   - If status labels don't exist, document the status in your comment
-   - Use mcp__github_issue_metadata__update_issue_labels for final updates
-   ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type if type needs changing" : ""}
-   - Document the reasoning for any metadata changes in your comment
-   - Mark this todo as complete by checking the box: - [x].
-`
-    : ""
-}
+
 5. Final Update:
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
