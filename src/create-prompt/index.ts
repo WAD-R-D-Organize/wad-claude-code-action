@@ -829,58 +829,65 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Use file system tools to make the change locally.
       - If you discover related tasks (e.g., updating tests), add them to the todo list.
       - Mark each subtask as completed as you progress.${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
-      ${
-        eventData.claudeBranch
-          ? `- Provide a URL to create a PR manually in this format:
+
+   C. For Complex Changes:
+      - Break down the implementation into subtasks in your comment checklist.
+      - Add new todos for any dependencies or related tasks you identify.
+      - Remove unnecessary todos if requirements change.
+      - Explain your reasoning for each decision.
+      - Mark each subtask as completed as you progress.
+      - Follow the same pushing strategy as for straightforward changes (see section B above).
+      - Or explain why it's too complex: mark todo as completed in checklist with explanation.
+
+   D. Generate PR Links:${
+      eventData.claudeBranch
+        ? `
+      MAIN REPOSITORY PR LINK:
+      - Provide a URL to create a PR manually in this format:
         [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
-        - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
-          Example: ${GITHUB_SERVER_URL}/${context.repository}/compare/main...feature-branch (correct)
-          NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
-        - IMPORTANT: Ensure all URL parameters are properly encoded - spaces should be encoded as %20, not left as spaces
-          Example: Instead of "fix: update welcome message", use "fix%3A%20update%20welcome%20message"
-        - The target-branch should be '${eventData.baseBranch}'.
-        - The branch-name is the current branch: ${eventData.claudeBranch}
-        - The body should include:
-          - A clear description of the changes
-          - Reference to the original ${eventData.isPR ? "PR" : "issue"}
-          - The signature: "Generated with [Claude Code](https://claude.ai/code)"
-        - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"${
+      - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
+        Example: ${GITHUB_SERVER_URL}/${context.repository}/compare/main...feature-branch (correct)
+        NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
+      - IMPORTANT: Ensure all URL parameters are properly encoded - spaces should be encoded as %20, not left as spaces
+        Example: Instead of "fix: update welcome message", use "fix%3A%20update%20welcome%20message"
+      - The target-branch should be '${eventData.baseBranch}'.
+      - The branch-name is the current branch: ${eventData.claudeBranch}
+      - The body should include:
+        - A clear description of the changes
+        - Reference to the original ${eventData.isPR ? "PR" : "issue"}
+        - The signature: "Generated with [Claude Code](https://claude.ai/code)"
+      - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"
+      ${
+        !handleSubmodules
+          ? `- After pushing all changes, include the main repository PR link using the format above
+      - Mark this todo as complete by checking the box: - [x].`
+          : `- After pushing all changes, always include the main repository PR link (needed for submodule reference updates if any)
+      - Mark this todo as complete by checking the box: - [x].`
+      }${
           handleSubmodules
             ? `
-        
-        SUBMODULE PR LINKS (when handle_submodules is enabled):
-        - IMPORTANT: When submodules have changes, you need PR links for BOTH main repository AND modified submodules:
-          1. Main repository PR: ALWAYS needed when submodules are modified (to update submodule references)
-          2. Submodule PRs: Needed for each modified submodule (for actual code changes)
-        
-        Steps to generate submodule PR links:
-          1. Check which submodules have changes: Bash(git submodule status)
-          2. For each submodule with changes, get the remote URL: Bash(cd <submodule-path> && git remote get-url origin)
-          3. Create a PR link for each modified submodule in this format:
-             [Create PR for <submodule-name>](<submodule-github-url>/compare/${eventData.baseBranch}...<submodule-branch>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
-          4. Use the same URL encoding rules as the main repository
-          5. The submodule branch name should match the main branch: ${eventData.claudeBranch}
-          6. Example format for submodule PR links:
-             [Create PR for libs/shared](https://github.com/owner/shared-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
-             [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
-          7. Remember: If you modified submodules, the main repository will ALSO have changes (submodule reference updates)
-        
-        FINAL STEP - Generate and include PR links:
-        - After pushing all changes, review what was modified:
-          - Main repository: Check for file changes OR submodule reference updates
-          - Submodules: Use Bash(git submodule status) to identify modified submodules
-        - Generate PR links for ALL repositories with changes using the formats above
-        - Include all PR links in your comment
-        - Mark this todo as complete by checking the box: - [x].`
-            : `
-        FINAL STEP - Generate and include PR link:
-        - After pushing all changes, include the main repository PR link using the format above
-        - Mark this todo as complete by checking the box: - [x].`
-        }`
-          : ""
-      }
 
-   C. Update Metadata Based on Implementation:${
+      SUBMODULE PR LINKS:
+      - When submodules have changes, you need PR links for BOTH main repository AND modified submodules
+      - Steps to generate submodule PR links:
+        1. Check which submodules have changes: Bash(git submodule status)
+        2. For each submodule with changes, get the remote URL: Bash(cd <submodule-path> && git remote get-url origin)
+        3. Create a PR link for each modified submodule in this format:
+           [Create PR for <submodule-name>](<submodule-github-url>/compare/${eventData.baseBranch}...<submodule-branch>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
+        4. Use the same URL encoding rules as the main repository
+        5. The submodule branch name should match the main branch: ${eventData.claudeBranch}
+        6. Example format for submodule PR links:
+           [Create PR for libs/shared](https://github.com/owner/shared-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
+           [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
+      - After pushing all changes, generate PR links for ALL modified submodules using the format above
+      - Include all submodule PR links in your comment
+      - Mark this todo as complete by checking the box: - [x].`
+            : ""
+        }`
+        : ""
+    }
+
+   E. Update Metadata Based on Implementation:${
       manageIssueMetadata &&
       !eventData.isPR &&
       (metadataUpdateStrategy === "both" || metadataUpdateStrategy === "final_only")
@@ -923,17 +930,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Mark this todo as complete by checking the box: - [x].
     `
         : ""
-    }
-
-   D. For Complex Changes:
-      - Break down the implementation into subtasks in your comment checklist.
-      - Add new todos for any dependencies or related tasks you identify.
-      - Remove unnecessary todos if requirements change.
-      - Explain your reasoning for each decision.
-      - Mark each subtask as completed as you progress.
-      - Follow the same pushing strategy as for straightforward changes (see section B above).
-      - Or explain why it's too complex: mark todo as completed in checklist with explanation.
-
+    }    
 5. Final Update:
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
