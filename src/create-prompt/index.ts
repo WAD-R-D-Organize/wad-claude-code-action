@@ -761,26 +761,30 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
         → This is an EXISTING ISSUE - only update status
       
       FOR NEW ISSUES (no previous classification):
-      - Analyze the issue content to determine appropriate metadata:
+      Step 1 - Analyze the issue content to determine appropriate metadata:
         - Issue category (bug, feature, documentation, enhancement, etc.)
         - Priority level (high, medium, low, critical)
         - Technical areas affected (frontend, backend, API, database, etc.)
         - Complexity/size indicators (small, medium, large)
         - Component labels based on content analysis
-      - Add initial status label if exists (e.g., "in-progress", "investigating")
-      - If desired labels don't exist, document in comment and use closest alternatives
+        ${metadataTypesEnabled ? "- Issue type analysis: Based on content and nature, determine appropriate issue type" : ""}
+      Step 2 - Add initial status label if exists (e.g., "in-progress", "investigating")
+      Step 3 - If desired labels don't exist, document in comment and use closest alternatives
+      Step 4 - Apply all metadata using tools:
+        - Use mcp__github_issue_metadata__update_issue_labels to apply all determined labels
+        ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type to set appropriate issue type" : ""}
+        - Document your reasoning in your comment
+      Step 5 - Mark this todo as complete by checking the box: - [x].
       
       FOR EXISTING ISSUES (already classified):
-      - ONLY update status labels:
+      Step 1 - ONLY update status labels:
         - Remove old status (e.g., "ready", "blocked", "needs-review")
         - Add "in-progress" or "investigating" to indicate work has started
-      - DO NOT modify category, priority, component, or size labels
-      - Document the status change in your comment
-      
-      - Use mcp__github_issue_metadata__update_issue_labels to apply changes
-      ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type to set appropriate issue type (for new issues only)" : ""}
-      - Document your reasoning in your comment
-      - Mark this todo as complete by checking the box: - [x].
+      Step 2 - DO NOT modify category, priority, component, or size labels
+      Step 3 - Apply status changes using tools:
+        - Use mcp__github_issue_metadata__update_issue_labels to update status labels only
+        - Document the status change in your comment
+      Step 4 - Mark this todo as complete by checking the box: - [x].
     `
         : ""
     }${
@@ -886,18 +890,31 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Use mcp__github_issue_metadata__get_issue_labels to check current labels
       ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__get_issue_type to check current type" : ""}
       
-      Based on actual implementation:
+      DETERMINE IMPLEMENTATION TYPE:
+      - Check if this is INITIAL IMPLEMENTATION (first time working on this issue) or SUBSEQUENT IMPLEMENTATION (issue already in progress)
+      
+      FOR INITIAL IMPLEMENTATION (first-time work - when this is the first time someone works on this issue, with only the original question and no other implementation-related discussions):
       - Update status labels:
         - Remove "in-progress" or "investigating"
         - Add completion status (e.g., "resolved", "needs-review", "partially-complete")
-      - For initial implementations, may also update:
-        - Adjust size/complexity if actual effort differed significantly
-        - Add component labels for areas actually modified
-        - Update type if nature changed (e.g., bug became enhancement)
-      - For subsequent implementations:
-        - Focus primarily on status updates
-        - Only modify other labels if significant scope change occurred
+      - Update implementation-based metadata:
+        - Adjust size/complexity if actual effort differed significantly from initial assessment
+        - Add component labels for areas actually modified during implementation
+        - Update type if nature changed during work (e.g., bug became enhancement)
+        ${metadataTypesEnabled ? "- Update issue type if implementation revealed different nature" : ""}
+      - IMPORTANT: Provide comprehensive metadata update based on actual work done
       
+      FOR SUBSEQUENT IMPLEMENTATION (ongoing work - when the issue has already had implementation attempts or multiple discussions, with other people's implementation comments, code modification suggestions, etc.):
+      - Focus primarily on status updates:
+        - Remove "in-progress" or "investigating"
+        - Add completion status (e.g., "resolved", "needs-review", "partially-complete")
+      - Only modify other metadata if significant scope change occurred:
+        - Update component labels only if new areas were touched
+        - Adjust complexity only if scope dramatically changed
+        ${metadataTypesEnabled ? "- Update type only if fundamental nature changed" : ""}
+      - IMPORTANT: Preserve existing metadata unless substantial changes occurred
+      
+      APPLY CHANGES:
       - IMPORTANT: Only use labels that exist in the repository
       - If status labels don't exist, document the status in your comment
       - Use mcp__github_issue_metadata__update_issue_labels for final updates
