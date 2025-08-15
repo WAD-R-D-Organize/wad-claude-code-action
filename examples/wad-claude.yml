@@ -88,6 +88,7 @@ jobs:
             4. 主倉庫 commit message 應說明為何更新子模組引用
             5. 根據變更內容判斷是否需要在對應的子模組中進行修改
 
+            !IMPORTANT!: Always ultrathink
           # ## Issue 元數據管理指引
           # 本專案已啟用自動 Issue 元數據管理，請遵循以下原則：
 
