@@ -440,10 +440,16 @@ function getCommitInstructions(
       return `
       - Push directly using mcp__github_file_ops__commit_files to the existing branch (works for both new and existing files).
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
-      - SUBMODULE SUPPORT: For files within submodules, use mcp__github_file_ops__commit_submodule_files instead:
-        - This tool handles both the submodule commit and parent repository submodule reference update
-        - Provide submodule_path, files (relative to submodule root), message (for submodule), and parent_message (for parent repo)
-        - Example: mcp__github_file_ops__commit_submodule_files with submodule_path="libs/my-lib", files=["src/main.js"], message="fix: update main", parent_message="chore: update submodule"
+      
+      SUBMODULE FILES - Use mcp__github_file_ops__commit_submodule_files:
+      - CRITICAL: Only use this tool when files are located INSIDE a submodule directory
+      - Check if file is in submodule: The file location check in step D will determine this
+      - This tool handles both the submodule commit and parent repository submodule reference update
+      - Provide submodule_path, files (relative to submodule root), message (for submodule), and parent_message (for parent repo)
+      - Example: mcp__github_file_ops__commit_submodule_files with submodule_path="libs/my-lib", files=["src/main.js"], message="fix: update main", parent_message="chore: update submodule"
+      
+      MAIN REPOSITORY FILES - Use mcp__github_file_ops__commit_files:
+      - Use this for files in the root repository (not in submodules)
       - When pushing changes with this tool and the trigger user is not "Unknown", include a Co-authored-by trailer in the commit message.
       - Use: "${coAuthorLine}"`;
     } else {
@@ -451,10 +457,16 @@ function getCommitInstructions(
       - You are already on the correct branch (${eventData.claudeBranch || "the PR branch"}). Do not create a new branch.
       - Push changes directly to the current branch using mcp__github_file_ops__commit_files (works for both new and existing files)
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
-      - SUBMODULE SUPPORT: For files within submodules, use mcp__github_file_ops__commit_submodule_files instead:
-        - This tool handles both the submodule commit and parent repository submodule reference update
-        - Provide submodule_path, files (relative to submodule root), message (for submodule), and parent_message (for parent repo)
-        - Example: mcp__github_file_ops__commit_submodule_files with submodule_path="libs/my-lib", files=["src/main.js"], message="fix: update main", parent_message="chore: update submodule"
+      
+      SUBMODULE FILES - Use mcp__github_file_ops__commit_submodule_files:
+      - CRITICAL: Only use this tool when files are located INSIDE a submodule directory
+      - Check if file is in submodule: The file location check in step D will determine this
+      - This tool handles both the submodule commit and parent repository submodule reference update
+      - Provide submodule_path, files (relative to submodule root), message (for submodule), and parent_message (for parent repo)
+      - Example: mcp__github_file_ops__commit_submodule_files with submodule_path="libs/my-lib", files=["src/main.js"], message="fix: update main", parent_message="chore: update submodule"
+      
+      MAIN REPOSITORY FILES - Use mcp__github_file_ops__commit_files:
+      - Use this for files in the root repository (not in submodules)
       - When pushing changes and the trigger user is not "Unknown", include a Co-authored-by trailer in the commit message.
       - Use: "${coAuthorLine}"`;
     }
@@ -472,15 +484,22 @@ function getCommitInstructions(
             : ""
         }
         - Push to the remote: Bash(git push origin HEAD)
-      - SUBMODULE SUPPORT: For files within submodules, commit to submodules first, then update parent:
-        - Navigate to submodule: Bash(cd <submodule-path>)
-        - Stage submodule files: Bash(cd <submodule-path> && git add <files>)
-        - Commit in submodule: Bash(cd <submodule-path> && git commit -m "<submodule-message>")
-        - Push submodule: Bash(cd <submodule-path> && git push origin <branch-name>)
-        - Return to parent: Bash(cd ..)
-        - Stage submodule reference: Bash(git add <submodule-path>)
-        - Commit parent update: Bash(git commit -m "<parent-message>")
-        - Push parent: Bash(git push origin HEAD)`;
+      
+      SUBMODULE FILES - Use git commands in sequence:
+      - CRITICAL: Only use this approach when files are located INSIDE a submodule directory
+      - Check if file is in submodule: The file location check in step D will determine this
+      - Commit to submodules first, then update parent:
+        1. Navigate to submodule: Bash(cd <submodule-path>)
+        2. Stage submodule files: Bash(cd <submodule-path> && git add <files>)
+        3. Commit in submodule: Bash(cd <submodule-path> && git commit -m "<submodule-message>")
+        4. Push submodule: Bash(cd <submodule-path> && git push origin <branch-name>)
+        5. Return to parent: Bash(cd ..)
+        6. Stage submodule reference: Bash(git add <submodule-path>)
+        7. Commit parent update: Bash(git commit -m "<parent-message>")
+        8. Push parent: Bash(git push origin HEAD)
+      
+      MAIN REPOSITORY FILES - Use standard git commands:
+      - Use this for files in the root repository (not in submodules)`;
     } else {
       const branchName = eventData.claudeBranch || eventData.baseBranch;
       return `
@@ -785,8 +804,8 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
     }${
       handleSubmodules && eventData.claudeBranch
         ? `
-   B. Submodule Detection and Setup (when handle_submodules is enabled):
-      - Check if this repository has submodules: Read(.gitmodules)
+   B. Submodule Detection and Setup:
+      - Check if this repository has submodules: Bash(test -f .gitmodules && cat .gitmodules || echo "No submodules found")
       ${useCommitSigning 
         ? `- If .gitmodules exists, note the submodules present
       - In commit signing mode, submodule operations are handled automatically by MCP tools
@@ -828,7 +847,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    B. For Straightforward Changes:
       - Use file system tools to make the change locally.
       - If you discover related tasks (e.g., updating tests), add them to the todo list.
-      - Mark each subtask as completed as you progress.${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
+      - Mark each subtask as completed as you progress.
 
    C. For Complex Changes:
       - Break down the implementation into subtasks in your comment checklist.
@@ -836,10 +855,18 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Remove unnecessary todos if requirements change.
       - Explain your reasoning for each decision.
       - Mark each subtask as completed as you progress.
-      - Follow the same pushing strategy as for straightforward changes (see section B above).
+      - Follow the same commit and push strategy as defined in section D above.
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
 
-   D. Update Metadata Based on Implementation:${
+   D. Commit and Push Changes:
+      - IMPORTANT: Always check file location before committing to use the correct tool
+      - File location check strategy:
+        1. For main repository files: Bash(git ls-files --error-unmatch <file-path> >/dev/null 2>&1 && echo "main repo" || echo "not in main")
+        2. For potential submodule files: Bash(git submodule foreach --quiet 'if [ -f "$1" ]; then echo "submodule: $name at $sm_path"; fi' -- <file-path>)
+      
+      DECISION TREE - Choose the correct commit method:${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
+
+   E. Update Metadata Based on Implementation:${
       manageIssueMetadata &&
       !eventData.isPR &&
       (metadataUpdateStrategy === "both" || metadataUpdateStrategy === "final_only")
