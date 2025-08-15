@@ -778,6 +778,8 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       
       FOR EXISTING ISSUES (already classified):
       - Skip this entire step - metadata will be reviewed at completion (step E)
+      - Mark this todo as complete with note: "Skipped - existing issue already has labels"
+      - Mark this todo as complete by checking the box: - [x].
     `
         : ""
     }${
