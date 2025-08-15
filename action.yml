@@ -27,6 +27,14 @@ inputs:
     description: "In tag mode, check for and reuse existing issue branches instead of creating new ones"
     required: false
     default: "false"
+  auto_assign_issues:
+    description: "Automatically assign users to issues when Claude starts working"
+    required: false
+    default: "false"
+  auto_assign_users:
+    description: "Comma-separated list of usernames to assign to issues (if not provided, will use issue creator)"
+    required: false
+    default: ""
   allowed_bots:
     description: "Comma-separated list of allowed bot usernames, or '*' to allow all bots. Empty string (default) allows no bots."
     required: false
@@ -180,6 +188,8 @@ runs:
         BASE_BRANCH: ${{ inputs.base_branch }}
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}
         REUSE_ISSUE_BRANCH: ${{ inputs.reuse_issue_branch }}
+        AUTO_ASSIGN_ISSUES: ${{ inputs.auto_assign_issues }}
+        AUTO_ASSIGN_USERS: ${{ inputs.auto_assign_users }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}

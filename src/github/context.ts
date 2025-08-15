@@ -75,6 +75,8 @@ type BaseContext = {
     baseBranch?: string;
     branchPrefix: string;
     reuseIssueBranch: boolean;
+    autoAssignIssues: boolean;
+    autoAssignUsers: string[];
     useStickyComment: boolean;
     additionalPermissions: Map<string, string>;
     useCommitSigning: boolean;
@@ -139,6 +141,8 @@ export function parseGitHubContext(): GitHubContext {
       baseBranch: process.env.BASE_BRANCH,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
       reuseIssueBranch: process.env.REUSE_ISSUE_BRANCH === "true",
+      autoAssignIssues: process.env.AUTO_ASSIGN_ISSUES === "true",
+      autoAssignUsers: parseMultilineInput(process.env.AUTO_ASSIGN_USERS ?? ""),
       useStickyComment: process.env.USE_STICKY_COMMENT === "true",
       additionalPermissions: parseAdditionalPermissions(
         process.env.ADDITIONAL_PERMISSIONS ?? "",
@@ -148,7 +152,11 @@ export function parseGitHubContext(): GitHubContext {
       handleSubmodules: process.env.HANDLE_SUBMODULES !== "false",
       submoduleBranchPrefix: process.env.SUBMODULE_BRANCH_PREFIX ?? "",
       manageIssueMetadata: process.env.MANAGE_ISSUE_METADATA === "true",
-      metadataUpdateStrategy: (process.env.METADATA_UPDATE_STRATEGY as "initial_only" | "final_only" | "both") ?? "both",
+      metadataUpdateStrategy:
+        (process.env.METADATA_UPDATE_STRATEGY as
+          | "initial_only"
+          | "final_only"
+          | "both") ?? "both",
       metadataTypesEnabled: process.env.METADATA_TYPES_ENABLED === "true",
     },
   };

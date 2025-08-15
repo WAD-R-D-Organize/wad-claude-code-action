@@ -3,6 +3,10 @@ import type { Mode, ModeOptions, ModeResult } from "../types";
 import { checkContainsTrigger } from "../../github/validation/trigger";
 import { checkHumanActor } from "../../github/validation/actor";
 import { createInitialComment } from "../../github/operations/comments/create-initial";
+import {
+  addIssueAssignees,
+  getAssignees,
+} from "../../github/operations/assignees";
 import { setupBranch } from "../../github/operations/branch";
 import { configureGitAuth } from "../../github/operations/git-config";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
@@ -69,6 +73,14 @@ export const tagMode: Mode = {
     // Create initial tracking comment
     const commentData = await createInitialComment(octokit.rest, context);
     const commentId = commentData.id;
+
+    // Auto-assign issues if enabled (only for issues, not PRs)
+    if (context.inputs.autoAssignIssues && !context.isPR) {
+      const assignees = getAssignees(context);
+      if (assignees.length > 0) {
+        await addIssueAssignees(octokit.rest, context, assignees);
+      }
+    }
 
     const githubData = await fetchGitHubData({
       octokits: octokit,

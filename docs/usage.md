@@ -46,6 +46,10 @@ jobs:
           # allowed_bots: "dependabot[bot],renovate[bot]"
           # Optional: reuse existing issue branches instead of creating new ones
           # reuse_issue_branch: true
+          # Optional: automatically assign users to issues when Claude starts working
+          # auto_assign_issues: true
+          # Optional: specify users to assign (if not provided, uses issue creator)
+          # auto_assign_users: "user1,user2"
           # Optional: enable automatic submodule handling (default: true)
           # handle_submodules: true
           # Optional: customize submodule branch prefix
@@ -92,6 +96,8 @@ jobs:
 | `use_commit_signing`           | Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands                     | No       | `false`   |
 | `allowed_bots`                 | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots                       | No       | ""        |
 | `reuse_issue_branch`           | In tag mode, check for and reuse existing issue branches instead of creating new ones                                                 | No       | `false`   |
+| `auto_assign_issues`           | Automatically assign users to issues when Claude starts working                                                                       | No       | `false`   |
+| `auto_assign_users`            | Comma-separated list of usernames to assign to issues (if not provided, will use issue creator)                                       | No       | ""        |
 | `handle_submodules`            | Enable automatic submodule handling (initialization, branch creation, and commits)                                                    | No       | `true`    |
 | `submodule_branch_prefix`      | The prefix to use for submodule branches (defaults to same as main branch_prefix). Only used when handle_submodules is true           | No       | ""        |
 | `manage_issue_metadata`        | Enable automatic issue label and type management                                                                                      | No       | `false`   |

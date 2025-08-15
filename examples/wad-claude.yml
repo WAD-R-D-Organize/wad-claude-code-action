@@ -66,6 +66,7 @@ jobs:
           # Enable automatic submodule handling (default: true, can be omitted)
           handle_submodules: true
           reuse_issue_branch: true # Reuse existing branches for issues if available
+          auto_assign_issues: true # Automatically assign issues assignees
           manage_issue_metadata: true # Automatically manage issue metadata
           metadata_update_strategy: "both" # 初始和最終都更新
           metadata_types_enabled: true # 啟用 issue types（需組織支援）
