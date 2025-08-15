@@ -777,14 +777,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       Step 5 - Mark this todo as complete by checking the box: - [x].
       
       FOR EXISTING ISSUES (already classified):
-      Step 1 - ONLY update status labels:
-        - Remove old status (e.g., "ready", "blocked", "needs-review")
-        - Add "in-progress" or "investigating" to indicate work has started
-      Step 2 - DO NOT modify category, priority, component, or size labels
-      Step 3 - Apply status changes using tools:
-        - Use mcp__github_issue_metadata__update_issue_labels to update status labels only
-        - Document the status change in your comment
-      Step 4 - Mark this todo as complete by checking the box: - [x].
+      - Skip this entire step - metadata will be reviewed at completion (step E)
     `
         : ""
     }${
@@ -792,11 +785,16 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
         ? `
    B. Submodule Detection and Setup (when handle_submodules is enabled):
       - Check if this repository has submodules: Read(.gitmodules)
-      - If .gitmodules exists, initialize submodules: Bash(git submodule update --init --recursive)
+      ${useCommitSigning 
+        ? `- If .gitmodules exists, note the submodules present
+      - In commit signing mode, submodule operations are handled automatically by MCP tools
+      - Document the submodule names and paths from .gitmodules for reference`
+        : `- If .gitmodules exists, initialize submodules: Bash(git submodule update --init --recursive)
       - For each submodule found, check its current branch and remote URL:
         - Bash(cd <submodule-path> && git branch --show-current)
         - Bash(cd <submodule-path> && git remote get-url origin)
-      - Document the submodule structure in your comment for reference
+      - Document the submodule structure in your comment for reference`
+      }
       - IMPORTANT: This information will be needed later if you make changes to submodules
       - Mark this todo as complete by checking the box: - [x].
     `
@@ -902,34 +900,20 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Use mcp__github_issue_metadata__get_issue_labels to check current labels
       ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__get_issue_type to check current type" : ""}
       
-      DETERMINE IMPLEMENTATION TYPE:
-      - Check if this is INITIAL IMPLEMENTATION (first time working on this issue) or SUBSEQUENT IMPLEMENTATION (issue already in progress)
-      
-      FOR INITIAL IMPLEMENTATION (first-time work - when this is the first time someone works on this issue, with only the original question and no other implementation-related discussions):
-      - Update status labels:
+      REASSESS ALL LABELS BASED ON IMPLEMENTATION:
+      - Update status labels to reflect completion:
         - Remove "in-progress" or "investigating"
         - Add completion status (e.g., "resolved", "needs-review", "partially-complete")
-      - Update implementation-based metadata:
-        - Adjust size/complexity if actual effort differed significantly from initial assessment
-        - Add component labels for areas actually modified during implementation
-        - Update type if nature changed during work (e.g., bug became enhancement)
-        ${metadataTypesEnabled ? "- Update issue type if implementation revealed different nature" : ""}
-      - IMPORTANT: Provide comprehensive metadata update based on actual work done
-      
-      FOR SUBSEQUENT IMPLEMENTATION (ongoing work - when the issue has already had implementation attempts or multiple discussions, with other people's implementation comments, code modification suggestions, etc.):
-      - Focus primarily on status updates:
-        - Remove "in-progress" or "investigating"
-        - Add completion status (e.g., "resolved", "needs-review", "partially-complete")
-      - Only modify other metadata if significant scope change occurred:
-        - Update component labels only if new areas were touched
-        - Adjust complexity only if scope dramatically changed
-        ${metadataTypesEnabled ? "- Update type only if fundamental nature changed" : ""}
-      - IMPORTANT: Preserve existing metadata unless substantial changes occurred
+      - Adjust size/complexity labels based on actual effort required
+      - Add/update component labels based on areas actually modified during implementation
+      - Update priority if the implementation revealed different urgency level
+      - Update category/type if the nature of work changed during implementation
+      ${metadataTypesEnabled ? "- Update issue type if implementation revealed different nature" : ""}
       
       APPLY CHANGES:
       - IMPORTANT: Only use labels that exist in the repository
-      - If status labels don't exist, document the status in your comment
-      - Use mcp__github_issue_metadata__update_issue_labels for final updates
+      - If desired labels don't exist, document the status in your comment and use closest alternatives
+      - Use mcp__github_issue_metadata__update_issue_labels for all label updates
       ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type if type needs changing" : ""}
       - Document the reasoning for any metadata changes in your comment
       - Mark this todo as complete by checking the box: - [x].
