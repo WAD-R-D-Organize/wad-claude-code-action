@@ -579,6 +579,7 @@ export function generatePrompt(
   manageIssueMetadata: boolean = false,
   metadataUpdateStrategy: "initial_only" | "final_only" | "both" = "both",
   metadataTypesEnabled: boolean = false,
+  handleSubmodules: boolean = false,
 ): string {
   if (context.overridePrompt) {
     return substitutePromptVariables(
@@ -596,6 +597,7 @@ export function generatePrompt(
     manageIssueMetadata,
     metadataUpdateStrategy,
     metadataTypesEnabled,
+    handleSubmodules,
   );
 }
 
@@ -610,6 +612,7 @@ export function generateDefaultPrompt(
   manageIssueMetadata: boolean = false,
   metadataUpdateStrategy: "initial_only" | "final_only" | "both" = "both",
   metadataTypesEnabled: boolean = false,
+  handleSubmodules: boolean = false,
 ): string {
   const {
     contextData,
@@ -780,6 +783,20 @@ ${
    - Mark this todo as complete by checking the box: - [x].
 `
     : ""
+}${
+  handleSubmodules && eventData.claudeBranch
+    ? `
+2b. Submodule Detection and Setup (when handle_submodules is enabled):
+   - Check if this repository has submodules: Read(.gitmodules)
+   - If .gitmodules exists, initialize submodules: Bash(git submodule update --init --recursive)
+   - For each submodule found, check its current branch and remote URL:
+     - Bash(cd <submodule-path> && git branch --show-current)
+     - Bash(cd <submodule-path> && git remote get-url origin)
+   - Document the submodule structure in your comment for reference
+   - IMPORTANT: This information will be needed later if you make changes to submodules
+   - Mark this todo as complete by checking the box: - [x].
+`
+    : ""
 }
 3. Understand the Request:
    - Extract the actual question or request from ${context.directPrompt ? "the <direct_prompt> tag above" : eventData.eventName === "issue_comment" || eventData.eventName === "pull_request_review_comment" || eventData.eventName === "pull_request_review" ? "the <trigger_comment> tag above" : `the comment/issue that contains '${context.triggerPhrase}'`}.
@@ -823,7 +840,26 @@ ${
           - A clear description of the changes
           - Reference to the original ${eventData.isPR ? "PR" : "issue"}
           - The signature: "Generated with [Claude Code](https://claude.ai/code)"
-        - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"`
+        - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"${
+          handleSubmodules
+            ? `
+        
+        SUBMODULE PR LINKS (when handle_submodules is enabled):
+        - IMPORTANT: If you made changes to any submodules, provide separate PR links for each modified submodule:
+          1. First, check which submodules have changes: Bash(git submodule status)
+          2. For each submodule with changes, get the remote URL: Bash(cd <submodule-path> && git remote get-url origin)
+          3. Create a PR link for each modified submodule in this format:
+             [Create PR for <submodule-name>](<submodule-github-url>/compare/<base-branch>...<submodule-branch>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
+          4. Use the same URL encoding rules as the main repository
+          5. The submodule branch name should match the main branch: ${eventData.claudeBranch}
+          6. Example format for submodule PR links:
+             [Create PR for libs/shared](https://github.com/owner/shared-lib/compare/main...${eventData.claudeBranch}?quick_pull=1&title=...)
+             [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/main...${eventData.claudeBranch}?quick_pull=1&title=...)
+          7. ONLY include PR links for repositories (main + submodules) that have actual changes
+          8. If no changes were made to the main repository, do not include the main repository PR link
+          9. If no changes were made to any submodule, do not include any submodule PR links`
+            : ""
+        }`
           : ""
       }
 
@@ -987,6 +1023,7 @@ export async function createPrompt(
       context.inputs.manageIssueMetadata,
       context.inputs.metadataUpdateStrategy,
       context.inputs.metadataTypesEnabled,
+      context.inputs.handleSubmodules,
     );
 
     // Log the final prompt to console

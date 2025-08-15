@@ -123,6 +123,7 @@ export const agentMode: Mode = {
     manageIssueMetadata?: boolean,
     metadataUpdateStrategy?: "initial_only" | "final_only" | "both",
     metadataTypesEnabled?: boolean,
+    handleSubmodules?: boolean,
   ): string {
     // Agent mode uses override or direct prompt, no GitHub data needed
     if (context.overridePrompt) {

@@ -142,6 +142,7 @@ export const tagMode: Mode = {
     manageIssueMetadata?: boolean,
     metadataUpdateStrategy?: "initial_only" | "final_only" | "both",
     metadataTypesEnabled?: boolean,
+    handleSubmodules?: boolean,
   ): string {
     return generateDefaultPrompt(
       context,
@@ -150,6 +151,7 @@ export const tagMode: Mode = {
       manageIssueMetadata || false,
       metadataUpdateStrategy || "both",
       metadataTypesEnabled || false,
+      handleSubmodules || false,
     );
   },
 
