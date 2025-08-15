@@ -95,8 +95,8 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   if (prLinkBlockMatch) {
     const prLinksContent = prLinkBlockMatch[1];
     
-    // Parse main repository PR link
-    const mainPRPattern = /\[Create a PR\]\((.*?)\)/;
+    // Parse main repository PR link - handle URLs with parentheses in them
+    const mainPRPattern = /\[Create a PR\]\((https?:\/\/[^\s]+)\)/;
     const mainMatch = prLinksContent.match(mainPRPattern);
     if (mainMatch && mainMatch[1]) {
       const encodedUrl = ensureProperlyEncodedUrl(mainMatch[1]);
