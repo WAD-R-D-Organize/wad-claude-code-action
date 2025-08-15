@@ -845,8 +845,12 @@ ${
             ? `
         
         SUBMODULE PR LINKS (when handle_submodules is enabled):
-        - IMPORTANT: If you made changes to any submodules, provide separate PR links for each modified submodule:
-          1. First, check which submodules have changes: Bash(git submodule status)
+        - IMPORTANT: When submodules have changes, you need PR links for BOTH main repository AND modified submodules:
+          1. Main repository PR: ALWAYS needed when submodules are modified (to update submodule references)
+          2. Submodule PRs: Needed for each modified submodule (for actual code changes)
+        
+        Steps to generate submodule PR links:
+          1. Check which submodules have changes: Bash(git submodule status)
           2. For each submodule with changes, get the remote URL: Bash(cd <submodule-path> && git remote get-url origin)
           3. Create a PR link for each modified submodule in this format:
              [Create PR for <submodule-name>](<submodule-github-url>/compare/${eventData.baseBranch}...<submodule-branch>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
@@ -855,10 +859,19 @@ ${
           6. Example format for submodule PR links:
              [Create PR for libs/shared](https://github.com/owner/shared-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
              [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
-          7. ONLY include PR links for repositories (main + submodules) that have actual changes
-          8. If no changes were made to the main repository, do not include the main repository PR link
-          9. If no changes were made to any submodule, do not include any submodule PR links`
-            : ""
+          7. Remember: If you modified submodules, the main repository will ALSO have changes (submodule reference updates)
+        
+        FINAL STEP - Generate and include PR links:
+        - After pushing all changes, review what was modified:
+          - Main repository: Check for file changes OR submodule reference updates
+          - Submodules: Use Bash(git submodule status) to identify modified submodules
+        - Generate PR links for ALL repositories with changes using the formats above
+        - Include all PR links in your comment
+        - Mark this todo as complete by checking the box: - [x].`
+            : `
+        FINAL STEP - Generate and include PR link:
+        - After pushing all changes, include the main repository PR link using the format above
+        - Mark this todo as complete by checking the box: - [x].`
         }`
           : ""
       }
@@ -899,22 +912,6 @@ ${
    - Use mcp__github_issue_metadata__update_issue_labels for final updates
    ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type if type needs changing" : ""}
    - Document the reasoning for any metadata changes in your comment
-   - Mark this todo as complete by checking the box: - [x].
-`
-    : ""
-}${
-  eventData.claudeBranch
-    ? `
-4b. Generate Pull Request Links:
-   - Check which repositories have actual changes:
-     - Main repository: Check if there are commits or uncommitted changes
-     ${handleSubmodules ? `- Each submodule: Use Bash(git submodule status) to check for changes` : ''}
-   - For each repository with changes, generate the appropriate PR link:
-     - Main repository: [Create a PR](...) using the format specified above
-     ${handleSubmodules ? `- Submodules: [Create PR for <name>](...) using the submodule format specified above` : ''}
-   - Include all PR links in your comment
-   - IMPORTANT: Only include links for repositories that have actual changes
-   - Follow the exact URL encoding and formatting rules provided above
    - Mark this todo as complete by checking the box: - [x].
 `
     : ""
