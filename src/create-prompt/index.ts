@@ -926,7 +926,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
    - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
-   - If you changed any files locally, you must update them in the remote branch via ${useCommitSigning ? "mcp__github_file_ops__commit_files" : "git commands (add, commit, push)"} before saying that you're done.
+   - If you changed any files locally, you must update them in the remote branch via ${useCommitSigning ? `mcp__github_file_ops__commit_files${handleSubmodules ? " or mcp__github_file_ops__commit_submodule_files (for submodule files)" : ""}` : `git commands (add, commit, push)${handleSubmodules ? " and submodule commands if needed" : ""}`} before saying that you're done.
    ${eventData.claudeBranch ? `- If you created anything in your branch, your comment must include all PR links wrapped in special markers:
   ===PRLink Start===
   [Create a PR](main-repo-url)
