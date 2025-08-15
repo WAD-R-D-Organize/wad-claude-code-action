@@ -849,12 +849,12 @@ ${
           1. First, check which submodules have changes: Bash(git submodule status)
           2. For each submodule with changes, get the remote URL: Bash(cd <submodule-path> && git remote get-url origin)
           3. Create a PR link for each modified submodule in this format:
-             [Create PR for <submodule-name>](<submodule-github-url>/compare/<base-branch>...<submodule-branch>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
+             [Create PR for <submodule-name>](<submodule-github-url>/compare/${eventData.baseBranch}...<submodule-branch>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
           4. Use the same URL encoding rules as the main repository
           5. The submodule branch name should match the main branch: ${eventData.claudeBranch}
           6. Example format for submodule PR links:
-             [Create PR for libs/shared](https://github.com/owner/shared-lib/compare/main...${eventData.claudeBranch}?quick_pull=1&title=...)
-             [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/main...${eventData.claudeBranch}?quick_pull=1&title=...)
+             [Create PR for libs/shared](https://github.com/owner/shared-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
+             [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
           7. ONLY include PR links for repositories (main + submodules) that have actual changes
           8. If no changes were made to the main repository, do not include the main repository PR link
           9. If no changes were made to any submodule, do not include any submodule PR links`
