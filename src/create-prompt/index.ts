@@ -902,6 +902,22 @@ ${
    - Mark this todo as complete by checking the box: - [x].
 `
     : ""
+}${
+  eventData.claudeBranch
+    ? `
+4b. Generate Pull Request Links:
+   - Check which repositories have actual changes:
+     - Main repository: Check if there are commits or uncommitted changes
+     ${handleSubmodules ? `- Each submodule: Use Bash(git submodule status) to check for changes` : ''}
+   - For each repository with changes, generate the appropriate PR link:
+     - Main repository: [Create a PR](...) using the format specified above
+     ${handleSubmodules ? `- Submodules: [Create PR for <name>](...) using the submodule format specified above` : ''}
+   - Include all PR links in your comment
+   - IMPORTANT: Only include links for repositories that have actual changes
+   - Follow the exact URL encoding and formatting rules provided above
+   - Mark this todo as complete by checking the box: - [x].
+`
+    : ""
 }
 5. Final Update:
    - Always update the GitHub comment to reflect the current todo state.
