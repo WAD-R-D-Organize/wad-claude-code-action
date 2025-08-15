@@ -12,12 +12,64 @@ import type { ParsedGitHubContext } from "../context";
 import type { GitHubPullRequest } from "../types";
 import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
+import {
+  getSubmodules,
+  initializeSubmodules,
+  createSubmoduleBranches,
+  checkoutOrCreateSubmoduleBranches,
+  type SubmoduleInfo,
+  type SubmoduleBranchInfo,
+} from "./submodule";
 
 export type BranchInfo = {
   baseBranch: string;
   claudeBranch?: string;
   currentBranch: string;
+  submodules?: SubmoduleInfo[];
+  submoduleBranches?: SubmoduleBranchInfo[];
 };
+
+/**
+ * Find existing branch for an issue by searching for pattern: {branchPrefix}issue-{entityNumber}-*
+ */
+async function findExistingIssueBranch(
+  octokits: Octokits,
+  owner: string,
+  repo: string,
+  entityNumber: number,
+  branchPrefix: string,
+): Promise<string | null> {
+  try {
+    console.log(`Searching for existing branches for issue #${entityNumber}...`);
+    
+    // Get all branches from the repository
+    const branches = await octokits.rest.repos.listBranches({
+      owner,
+      repo,
+      per_page: 100, // Get up to 100 branches
+    });
+
+    // Create the branch pattern to match
+    const branchPattern = `${branchPrefix}issue-${entityNumber}-`;
+    
+    // Find branches that match the pattern
+    const matchingBranches = branches.data
+      .filter(branch => branch.name.startsWith(branchPattern))
+      .sort((a, b) => b.name.localeCompare(a.name)); // Sort by name descending (latest first)
+    
+    if (matchingBranches.length > 0) {
+      const foundBranch = matchingBranches[0].name;
+      console.log(`Found existing branch for issue #${entityNumber}: ${foundBranch}`);
+      return foundBranch;
+    }
+    
+    console.log(`No existing branch found for issue #${entityNumber}`);
+    return null;
+  } catch (error) {
+    console.error(`Error searching for existing branches: ${error}`);
+    return null; // If we can't search, fall back to creating new branch
+  }
+}
 
 export async function setupBranch(
   octokits: Octokits,
@@ -26,7 +78,7 @@ export async function setupBranch(
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
-  const { baseBranch, branchPrefix } = context.inputs;
+  const { baseBranch, branchPrefix, reuseIssueBranch } = context.inputs;
   const isPR = context.isPR;
 
   if (isPR) {
@@ -59,12 +111,17 @@ export async function setupBranch(
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
 
+      // Initialize submodules for open PRs
+      await initializeSubmodules();
+      const submodules = await getSubmodules();
+
       // For open PRs, we need to get the base branch of the PR
       const baseBranch = prData.baseRefName;
 
       return {
         baseBranch,
         currentBranch: branchName,
+        submodules,
       };
     }
   }
@@ -87,17 +144,38 @@ export async function setupBranch(
   // Generate branch name for either an issue or closed/merged PR
   const entityType = isPR ? "pr" : "issue";
 
-  // Create Kubernetes-compatible timestamp: lowercase, hyphens only, shorter format
-  const now = new Date();
-  const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+  // Check for existing branch if reuse is enabled and this is an issue
+  let existingBranch: string | null = null;
+  if (reuseIssueBranch && entityType === "issue") {
+    existingBranch = await findExistingIssueBranch(
+      octokits,
+      owner,
+      repo,
+      entityNumber,
+      branchPrefix,
+    );
+  }
 
-  // Ensure branch name is Kubernetes-compatible:
-  // - Lowercase only
-  // - Alphanumeric with hyphens
-  // - No underscores
-  // - Max 50 chars (to allow for prefixes)
-  const branchName = `${branchPrefix}${entityType}-${entityNumber}-${timestamp}`;
-  const newBranch = branchName.toLowerCase().substring(0, 50);
+  let newBranch: string;
+  if (existingBranch) {
+    // Use the existing branch
+    newBranch = existingBranch;
+    console.log(`Reusing existing branch: ${newBranch}`);
+  } else {
+    // Create new branch with timestamp
+    // Create Kubernetes-compatible timestamp: lowercase, hyphens only, shorter format
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+
+    // Ensure branch name is Kubernetes-compatible:
+    // - Lowercase only
+    // - Alphanumeric with hyphens
+    // - No underscores
+    // - Max 50 chars (to allow for prefixes)
+    const branchName = `${branchPrefix}${entityType}-${entityNumber}-${timestamp}`;
+    newBranch = branchName.toLowerCase().substring(0, 50);
+    console.log(`Creating new branch: ${newBranch}`);
+  }
 
   try {
     // Get the SHA of the source branch to verify it exists
@@ -112,37 +190,77 @@ export async function setupBranch(
 
     // For commit signing, defer branch creation to the file ops server
     if (context.inputs.useCommitSigning) {
-      console.log(
-        `Branch name generated: ${newBranch} (will be created by file ops server on first commit)`,
-      );
+      if (existingBranch) {
+        console.log(`Using existing branch: ${newBranch} (with commit signing)`);
+        // Checkout the existing branch
+        await $`git fetch origin ${newBranch} --depth=20`;
+        await $`git checkout ${newBranch}`;
+      } else {
+        console.log(
+          `Branch name generated: ${newBranch} (will be created by file ops server on first commit)`,
+        );
+        // Ensure we're on the source branch
+        console.log(`Fetching and checking out source branch: ${sourceBranch}`);
+        await $`git fetch origin ${sourceBranch} --depth=1`;
+        await $`git checkout ${sourceBranch}`;
+      }
 
-      // Ensure we're on the source branch
-      console.log(`Fetching and checking out source branch: ${sourceBranch}`);
-      await $`git fetch origin ${sourceBranch} --depth=1`;
-      await $`git checkout ${sourceBranch}`;
+      // Initialize submodules
+      await initializeSubmodules();
+      const submodules = await getSubmodules();
 
       // Set outputs for GitHub Actions
       core.setOutput("CLAUDE_BRANCH", newBranch);
       core.setOutput("BASE_BRANCH", sourceBranch);
+      
+      // Store submodule info for later use
+      if (submodules.length > 0) {
+        core.setOutput("SUBMODULES", JSON.stringify(submodules));
+      }
+      
       return {
         baseBranch: sourceBranch,
         claudeBranch: newBranch,
-        currentBranch: sourceBranch, // Stay on source branch for now
+        currentBranch: existingBranch ? newBranch : sourceBranch, // Use existing branch if available
+        submodules,
       };
     }
 
     // For non-signing case, create and checkout the branch locally only
-    console.log(
-      `Creating local branch ${newBranch} for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
-    );
+    if (existingBranch) {
+      console.log(`Using existing branch: ${newBranch}`);
+      // Checkout the existing branch
+      await $`git fetch origin ${newBranch} --depth=20`;
+      await $`git checkout ${newBranch}`;
+    } else {
+      console.log(
+        `Creating local branch ${newBranch} for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
+      );
 
-    // Fetch and checkout the source branch first to ensure we branch from the correct base
-    console.log(`Fetching and checking out source branch: ${sourceBranch}`);
-    await $`git fetch origin ${sourceBranch} --depth=1`;
-    await $`git checkout ${sourceBranch}`;
+      // Fetch and checkout the source branch first to ensure we branch from the correct base
+      console.log(`Fetching and checking out source branch: ${sourceBranch}`);
+      await $`git fetch origin ${sourceBranch} --depth=1`;
+      await $`git checkout ${sourceBranch}`;
 
-    // Create and checkout the new branch from the source branch
-    await $`git checkout -b ${newBranch}`;
+      // Create and checkout the new branch from the source branch
+      await $`git checkout -b ${newBranch}`;
+    }
+
+    // Initialize submodules (for both existing and new branches)
+    await initializeSubmodules();
+    const submodules = await getSubmodules();
+
+    // Create matching branches in submodules
+    let submoduleBranches: SubmoduleBranchInfo[] = [];
+    if (submodules.length > 0) {
+      if (existingBranch) {
+        // For existing branch, try to checkout existing submodule branches
+        submoduleBranches = await checkoutOrCreateSubmoduleBranches(newBranch, submodules, existingBranch);
+      } else {
+        // For new branch, create new submodule branches
+        submoduleBranches = await createSubmoduleBranches(newBranch, submodules);
+      }
+    }
 
     console.log(
       `Successfully created and checked out local branch: ${newBranch}`,
@@ -151,10 +269,19 @@ export async function setupBranch(
     // Set outputs for GitHub Actions
     core.setOutput("CLAUDE_BRANCH", newBranch);
     core.setOutput("BASE_BRANCH", sourceBranch);
+    
+    // Store submodule info for later use
+    if (submodules.length > 0) {
+      core.setOutput("SUBMODULES", JSON.stringify(submodules));
+      core.setOutput("SUBMODULE_BRANCHES", JSON.stringify(submoduleBranches));
+    }
+    
     return {
       baseBranch: sourceBranch,
       claudeBranch: newBranch,
       currentBranch: newBranch,
+      submodules,
+      submoduleBranches,
     };
   } catch (error) {
     console.error("Error in branch setup:", error);

@@ -127,8 +127,18 @@ export const tagMode: Mode = {
     context: PreparedContext,
     githubData: FetchDataResult,
     useCommitSigning: boolean,
+    manageIssueMetadata?: boolean,
+    metadataUpdateStrategy?: "initial_only" | "final_only" | "both",
+    metadataTypesEnabled?: boolean,
   ): string {
-    return generateDefaultPrompt(context, githubData, useCommitSigning);
+    return generateDefaultPrompt(
+      context,
+      githubData,
+      useCommitSigning,
+      manageIssueMetadata || false,
+      metadataUpdateStrategy || "both",
+      metadataTypesEnabled || false,
+    );
   },
 
   getSystemPrompt() {

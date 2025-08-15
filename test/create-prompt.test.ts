@@ -908,7 +908,7 @@ describe("getEventTypeAndContext", () => {
 
 describe("buildAllowedToolsString", () => {
   test("should return correct tools for regular events (default no signing)", () => {
-    const result = buildAllowedToolsString();
+    const result = buildAllowedToolsString([], false, false, false, false);
 
     // The base tools should be in the result
     expect(result).toContain("Edit");
@@ -930,7 +930,7 @@ describe("buildAllowedToolsString", () => {
   });
 
   test("should return correct tools with default parameters", () => {
-    const result = buildAllowedToolsString([], false, false);
+    const result = buildAllowedToolsString([], false, false, false, false);
 
     // The base tools should be in the result
     expect(result).toContain("Edit");
@@ -952,7 +952,7 @@ describe("buildAllowedToolsString", () => {
 
   test("should append custom tools when provided", () => {
     const customTools = ["Tool1", "Tool2", "Tool3"];
-    const result = buildAllowedToolsString(customTools);
+    const result = buildAllowedToolsString(customTools, false, false, false, false);
 
     // Base tools should be present
     expect(result).toContain("Edit");
@@ -972,7 +972,7 @@ describe("buildAllowedToolsString", () => {
   });
 
   test("should include GitHub Actions tools when includeActionsTools is true", () => {
-    const result = buildAllowedToolsString([], true);
+    const result = buildAllowedToolsString([], true, false, false, false);
 
     // Base tools should be present
     expect(result).toContain("Edit");
@@ -986,7 +986,7 @@ describe("buildAllowedToolsString", () => {
 
   test("should include both custom and Actions tools when both provided", () => {
     const customTools = ["Tool1", "Tool2"];
-    const result = buildAllowedToolsString(customTools, true);
+    const result = buildAllowedToolsString(customTools, true, false, false, false);
 
     // Base tools should be present
     expect(result).toContain("Edit");
@@ -1002,7 +1002,7 @@ describe("buildAllowedToolsString", () => {
   });
 
   test("should include commit signing tools when useCommitSigning is true", () => {
-    const result = buildAllowedToolsString([], false, true);
+    const result = buildAllowedToolsString([], false, true, false, false);
 
     // Base tools should be present
     expect(result).toContain("Edit");
@@ -1023,7 +1023,7 @@ describe("buildAllowedToolsString", () => {
   });
 
   test("should include specific Bash git commands when useCommitSigning is false", () => {
-    const result = buildAllowedToolsString([], false, false);
+    const result = buildAllowedToolsString([], false, false, false, false);
 
     // Base tools should be present
     expect(result).toContain("Edit");
@@ -1052,7 +1052,7 @@ describe("buildAllowedToolsString", () => {
 
   test("should handle all combinations of options", () => {
     const customTools = ["CustomTool1", "CustomTool2"];
-    const result = buildAllowedToolsString(customTools, true, false);
+    const result = buildAllowedToolsString(customTools, true, false, false, false);
 
     // Base tools should be present
     expect(result).toContain("Edit");
@@ -1070,6 +1070,41 @@ describe("buildAllowedToolsString", () => {
 
     // Commit signing tools should NOT be included
     expect(result).not.toContain("mcp__github_file_ops__commit_files");
+  });
+
+  test("should include issue metadata tools when manageIssueMetadata is true", () => {
+    const result = buildAllowedToolsString([], false, false, true, false);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+    expect(result).toContain("Glob");
+
+    // Issue metadata tools should be included
+    expect(result).toContain("mcp__github_issue_metadata__get_repository_labels");
+    expect(result).toContain("mcp__github_issue_metadata__get_issue_labels");
+    expect(result).toContain("mcp__github_issue_metadata__update_issue_labels");
+
+    // Types tools should NOT be included when metadataTypesEnabled is false
+    expect(result).not.toContain("mcp__github_issue_metadata__get_organization_issue_types");
+    expect(result).not.toContain("mcp__github_issue_metadata__get_issue_type");
+    expect(result).not.toContain("mcp__github_issue_metadata__update_issue_type");
+  });
+
+  test("should include issue metadata and types tools when both are enabled", () => {
+    const result = buildAllowedToolsString([], false, false, true, true);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+
+    // Issue metadata tools should be included
+    expect(result).toContain("mcp__github_issue_metadata__get_repository_labels");
+    expect(result).toContain("mcp__github_issue_metadata__get_issue_labels");
+    expect(result).toContain("mcp__github_issue_metadata__update_issue_labels");
+
+    // Types tools should be included when metadataTypesEnabled is true
+    expect(result).toContain("mcp__github_issue_metadata__get_organization_issue_types");
+    expect(result).toContain("mcp__github_issue_metadata__get_issue_type");
+    expect(result).toContain("mcp__github_issue_metadata__update_issue_type");
   });
 });
 

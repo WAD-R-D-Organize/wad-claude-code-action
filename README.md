@@ -48,6 +48,7 @@ This command will guide you through setting up the GitHub app and required secre
 - [Cloud Providers](./docs/cloud-providers.md) - AWS Bedrock and Google Vertex AI setup
 - [Capabilities & Limitations](./docs/capabilities-and-limitations.md) - What Claude can and cannot do
 - [Security](./docs/security.md) - Access control, permissions, and commit signing
+- [Self-hosted Runner Cleanup](./docs/self-hosted-runner-cleanup.md) - Resolve workspace cleanup issues with submodules
 - [FAQ](./docs/faq.md) - Common questions and troubleshooting
 
 ## 📚 FAQ
