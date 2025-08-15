@@ -40,6 +40,7 @@ export function buildAllowedToolsString(
   useCommitSigning: boolean = false,
   manageIssueMetadata: boolean = false,
   metadataTypesEnabled: boolean = false,
+  handleSubmodules: boolean = false,
 ): string {
   let baseTools = [...BASE_ALLOWED_TOOLS];
 
@@ -64,6 +65,20 @@ export function buildAllowedToolsString(
       "Bash(git log:*)",
       "Bash(git rm:*)",
       "Bash(git submodule:*)",
+    );
+  }
+
+  // Add additional Bash tools when handling submodules
+  if (handleSubmodules) {
+    baseTools.push(
+      "Bash(test:*)",
+      "Bash(echo:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(mkdir:*)",
+      "Bash(bun:*)",
+      "Bash(npm:*)",
     );
   }
 
@@ -865,6 +880,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
         2. For potential submodule files: Bash(git submodule foreach --quiet 'if [ -f "$1" ]; then echo "submodule: $name at $sm_path"; fi' -- <file-path>)
       
       DECISION TREE - Choose the correct commit method:${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
+      - Mark this todo as complete by checking the box: - [x].
 
    E. Update Metadata Based on Implementation:${
       manageIssueMetadata &&
@@ -1099,6 +1115,7 @@ export async function createPrompt(
       context.inputs.useCommitSigning,
       context.inputs.manageIssueMetadata,
       context.inputs.metadataTypesEnabled,
+      context.inputs.handleSubmodules,
     );
     const allDisallowedTools = buildDisallowedToolsString(
       combinedDisallowedTools,
