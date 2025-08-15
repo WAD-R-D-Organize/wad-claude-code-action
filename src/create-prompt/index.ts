@@ -782,7 +782,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       (metadataUpdateStrategy === "both" ||
         metadataUpdateStrategy === "initial_only")
         ? `
-   A. Analyze and Set Initial Issue Metadata:
+   A. Analyze and Set Initial Issue Metadata (Must be included in TodoWrite):
       - CRITICAL: First use mcp__github_issue_metadata__get_repository_labels to fetch ALL available labels
       - Use mcp__github_issue_metadata__get_issue_labels to check current issue labels
       - IMPORTANT: You can ONLY use labels that exist in the repository - you CANNOT create new labels
@@ -819,13 +819,14 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
     }${
       handleSubmodules && eventData.claudeBranch
         ? `
-   B. Submodule Detection and Setup:
+   B. Submodule Detection and Setup (Must be included in TodoWrite):
       - Check if this repository has submodules: Bash(test -f .gitmodules && cat .gitmodules || echo "No submodules found")
-      ${useCommitSigning 
-        ? `- If .gitmodules exists, note the submodules present
+      ${
+        useCommitSigning
+          ? `- If .gitmodules exists, note the submodules present
       - In commit signing mode, submodule operations are handled automatically by MCP tools
       - Document the submodule names and paths from .gitmodules for reference`
-        : `- If .gitmodules exists, initialize submodules: Bash(git submodule update --init --recursive)
+          : `- If .gitmodules exists, initialize submodules: Bash(git submodule update --init --recursive)
       - For each submodule found, check its current branch and remote URL:
         - Bash(cd <submodule-path> && git branch --show-current)
         - Bash(cd <submodule-path> && git remote get-url origin)
@@ -873,7 +874,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Follow the same commit and push strategy as defined in section D above.
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
 
-   D. Commit and Push Changes:
+   D. Commit and Push Changes (Must be included in TodoWrite):
       - IMPORTANT: Always check file location before committing to use the correct tool
       - File location check strategy:
         1. For main repository files: Bash(git ls-files --error-unmatch <file-path> >/dev/null 2>&1 && echo "main repo" || echo "not in main")
@@ -882,11 +883,12 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       DECISION TREE - Choose the correct commit method:${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
       - Mark this todo as complete by checking the box: - [x].
 
-   E. Update Metadata Based on Implementation:${
-      manageIssueMetadata &&
-      !eventData.isPR &&
-      (metadataUpdateStrategy === "both" || metadataUpdateStrategy === "final_only")
-        ? `
+   E. Update Metadata Based on Implementation (Must be included in TodoWrite):${
+     manageIssueMetadata &&
+     !eventData.isPR &&
+     (metadataUpdateStrategy === "both" ||
+       metadataUpdateStrategy === "final_only")
+       ? `
       - Review the work completed and reassess the issue
       - Use mcp__github_issue_metadata__get_repository_labels to check available labels
       - Use mcp__github_issue_metadata__get_issue_labels to check current labels
@@ -910,14 +912,16 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Document the reasoning for any metadata changes in your comment
       - Mark this todo as complete by checking the box: - [x].
     `
-        : ""
-    }    
+       : ""
+   }    
 5. Final Update:
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
    - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
    - If you changed any files locally, you must update them in the remote branch via ${useCommitSigning ? `mcp__github_file_ops__commit_files${handleSubmodules ? " or mcp__github_file_ops__commit_submodule_files (for submodule files)" : ""}` : `git commands (add, commit, push)${handleSubmodules ? " and submodule commands if needed" : ""}`} before saying that you're done.
-   ${eventData.claudeBranch ? `- If you created anything in your branch, generate and include PR links as follows:
+   ${
+     eventData.claudeBranch
+       ? `- If you created anything in your branch, generate and include PR links as follows:
   
   MAIN REPOSITORY PR LINK:
   - Provide a URL to create a PR manually in this format:
@@ -931,10 +935,11 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
   - The branch-name is the current branch: ${eventData.claudeBranch}
   - The body should include:
     - A clear description of the changes
-    - ${eventData.isPR ? `Reference to the original PR: "Related to #${eventData.prNumber || "[PR number]"}"` : `Auto-close reference: "Closes #${"issueNumber" in eventData && eventData.issueNumber || "[issue number]"}" (this will automatically close the issue when PR is merged)`}
+    - ${eventData.isPR ? `Reference to the original PR: "Related to #${eventData.prNumber || "[PR number]"}"` : `Auto-close reference: "Closes #${("issueNumber" in eventData && eventData.issueNumber) || "[issue number]"}" (this will automatically close the issue when PR is merged)`}
     - The signature: "Generated with [Claude Code](https://claude.ai/code)"
   - IMPORTANT: The link text "[Create a PR]" must always be in English, never translate it${
-    handleSubmodules ? `
+    handleSubmodules
+      ? `
   
   SUBMODULE PR LINKS:
   - When submodules have changes, you need PR links for BOTH main repository AND modified submodules
@@ -945,23 +950,31 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
        [Create PR for <submodule-name>](<submodule-github-url>/compare/${eventData.baseBranch}...<submodule-branch>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>&assignees=${context.triggerUsername || ""})
     4. The submodule PR body should include:
        - A clear description of what was changed in the submodule
-       - Reference to the original ${eventData.isPR ? "PR" : "issue"}: "Related to ${context.repository}#${eventData.isPR ? eventData.prNumber || "[PR number]" : "issueNumber" in eventData && eventData.issueNumber || "[issue number]"}"
+       - Reference to the original ${eventData.isPR ? "PR" : "issue"}: "Related to ${context.repository}#${eventData.isPR ? eventData.prNumber || "[PR number]" : ("issueNumber" in eventData && eventData.issueNumber) || "[issue number]"}"
        - The signature: "Generated with [Claude Code](https://claude.ai/code)"
     5. Use the same URL encoding rules as the main repository
     6. The submodule branch name should match the main branch: ${eventData.claudeBranch}
     7. IMPORTANT: The link text "[Create PR for <submodule-name>]" must always be in English, never translate it
     8. Example format for submodule PR links:
        [Create PR for libs/shared](https://github.com/owner/shared-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
-       [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)` : ""}
+       [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)`
+      : ""
+  }
   
   - After generating the PR links, wrap ${handleSubmodules ? "ALL PR links (main repository and submodules)" : "the main repository PR link"} in special markers:
   ===PRLink Start===
-  [Create a PR](main-repo-url)${handleSubmodules ? `
+  [Create a PR](main-repo-url)${
+    handleSubmodules
+      ? `
   [Create PR for submodule1](submodule1-url)
-  [Create PR for submodule2](submodule2-url)` : ""}
+  [Create PR for submodule2](submodule2-url)`
+      : ""
+  }
   ===PRLink End===
   - IMPORTANT: The link text must always be in English
-  - Do not add any explanatory text, just the PR links within the markers` : ""}
+  - Do not add any explanatory text, just the PR links within the markers`
+       : ""
+   }
 
 Important Notes:
 - All communication must happen through GitHub PR comments.
