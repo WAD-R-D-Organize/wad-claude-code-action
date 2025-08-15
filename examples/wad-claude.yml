@@ -50,7 +50,7 @@ jobs:
           # Use full depth to ensure all submodule references are available
           fetch-depth: 0
 
-      - name: Run Claude PR Action
+      - name: Run Claude Code Action
         uses: WAD-R-D-Organize/wad-claude-code-action@wad-master
         with:
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

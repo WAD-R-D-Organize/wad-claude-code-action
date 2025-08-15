@@ -856,12 +856,12 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
         - A clear description of the changes
         - ${eventData.isPR ? `Reference to the original PR: "Related to #${eventData.prNumber || "[PR number]"}"` : `Auto-close reference: "Closes #${eventData.issueNumber || "[issue number]"}" (this will automatically close the issue when PR is merged)`}
         - The signature: "Generated with [Claude Code](https://claude.ai/code)"
-      - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"
+      - IMPORTANT: The link text "[Create a PR]" must always be in English, never translate it
       ${
         !handleSubmodules
-          ? `- After pushing all changes, include the main repository PR link using the format above
+          ? `- After pushing all changes, wrap the main repository PR link in the special markers as shown in section 5 (Final Update)
       - Mark this todo as complete by checking the box: - [x].`
-          : `- After pushing all changes, always include the main repository PR link (needed for submodule reference updates if any)
+          : `- After pushing all changes, wrap the main repository PR link in the special markers as shown in section 5 (Final Update)
       - Mark this todo as complete by checking the box: - [x].`
       }${
           handleSubmodules
@@ -880,11 +880,12 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
            - The signature: "Generated with [Claude Code](https://claude.ai/code)"
         5. Use the same URL encoding rules as the main repository
         6. The submodule branch name should match the main branch: ${eventData.claudeBranch}
-        7. Example format for submodule PR links:
+        7. IMPORTANT: The link text "[Create PR for <submodule-name>]" must always be in English, never translate it
+        8. Example format for submodule PR links:
            [Create PR for libs/shared](https://github.com/owner/shared-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
            [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
       - After pushing all changes, generate PR links for ALL modified submodules using the format above
-      - Include all submodule PR links in your comment
+      - Wrap ALL PR links (main repository and submodules) in the special markers as shown in section 5 (Final Update)
       - Mark this todo as complete by checking the box: - [x].`
             : ""
         }`
@@ -940,7 +941,14 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
    - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
    - If you changed any files locally, you must update them in the remote branch via ${useCommitSigning ? "mcp__github_file_ops__commit_files" : "git commands (add, commit, push)"} before saying that you're done.
-   ${eventData.claudeBranch ? `- If you created anything in your branch, your comment must include the PR URL with prefilled title and body mentioned above.` : ""}
+   ${eventData.claudeBranch ? `- If you created anything in your branch, your comment must include all PR links wrapped in special markers:
+  ===PRLink Start===
+  [Create a PR](main-repo-url)
+  [Create PR for submodule1](submodule1-url)
+  [Create PR for submodule2](submodule2-url)
+  ===PRLink End===
+  - IMPORTANT: The link text must always be in English
+  - Do not add any explanatory text, just the PR links within the markers` : ""}
 
 Important Notes:
 - All communication must happen through GitHub PR comments.
