@@ -808,12 +808,10 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
         - Use mcp__github_issue_metadata__update_issue_labels to apply all determined labels
         ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type to set appropriate issue type" : ""}
         - Document your reasoning in your comment
-      Step 5 - Mark this todo as complete by checking the box: - [x].
       
       FOR EXISTING ISSUES (already classified):
-      - Skip this entire step - metadata will be reviewed at completion (step E)
+      - Skip this entire step - metadata will be reviewed at completion (step 4.E)
       - Mark this todo as complete with note: "Skipped - existing issue already has labels"
-      - Mark this todo as complete by checking the box: - [x].
     `
         : ""
     }${
@@ -833,7 +831,6 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Document the submodule structure in your comment for reference`
       }
       - IMPORTANT: This information will be needed later if you make changes to submodules
-      - Mark this todo as complete by checking the box: - [x].
     `
         : ""
     }
@@ -874,14 +871,12 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Follow the same commit and push strategy as defined in section D above.
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
 
-   D. Commit and Push Changes (Must be included in TodoWrite):
+   D. Git Commit and Push Only Changed Files (Must be included in TodoWrite):
       - IMPORTANT: Always check file location before committing to use the correct tool
       - File location check strategy:
         1. For main repository files: Bash(git ls-files --error-unmatch <file-path> >/dev/null 2>&1 && echo "main repo" || echo "not in main")
-        2. For potential submodule files: Bash(git submodule foreach --quiet 'if [ -f "$1" ]; then echo "submodule: $name at $sm_path"; fi' -- <file-path>)
-      
-      DECISION TREE - Choose the correct commit method:${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
-      - Mark this todo as complete by checking the box: - [x].
+        2. For potential submodule files: Bash(git submodule foreach --quiet 'if [ -f "$1" ]; then echo "submodule: $name at $sm_path"; fi' -- <file-path>)      
+      ${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
 
    E. Update Metadata Based on Implementation (Must be included in TodoWrite):${
      manageIssueMetadata &&
@@ -910,7 +905,6 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Use mcp__github_issue_metadata__update_issue_labels for all label updates
       ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type if type needs changing" : ""}
       - Document the reasoning for any metadata changes in your comment
-      - Mark this todo as complete by checking the box: - [x].
     `
        : ""
    }    
