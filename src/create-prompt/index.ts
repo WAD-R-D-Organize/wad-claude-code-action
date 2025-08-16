@@ -79,6 +79,7 @@ export function buildAllowedToolsString(
       "Bash(mkdir:*)",
       "Bash(bun:*)",
       "Bash(npm:*)",
+      "Bash(git ls-files:*)",
     );
   }
 
@@ -873,7 +874,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    }
       - IMPORTANT: Always check file location before committing to use the correct tool
       - File location check strategy (applies to ALL changed files):
-        1. For main repository files: Bash(git ls-files --error-unmatch <file-path> >/dev/null 2>&1 && echo "main repo" || echo "not in main")${
+        1. For main repository files: Bash(git ls-files --error-unmatch <file-path> && echo "main repo" || echo "not in main")${
           handleSubmodules && eventData.claudeBranch
             ? `
         2. For potential submodule files: Bash(git submodule foreach --quiet 'if [ -f "$1" ]; then echo "submodule: $name at $sm_path"; fi' -- <file-path>)`
