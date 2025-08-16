@@ -920,7 +920,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
     `
        : ""
    }    
-5. Final Update (Must be included in TodoWrite and Remember the PR LINKS Rules):
+5. Final Update (Must be included in TodoWrite and Remember the PR LINKS Rules and don't forget to generate MAIN REPOSITORY PR LINK and SUBMODULE PR LINKS if needed):
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
    - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
