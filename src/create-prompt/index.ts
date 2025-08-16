@@ -855,7 +855,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Follow the same commit and push strategy as defined in section D above.
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
 
-   D. Git Commit and Push Only Changed Files (Must be included in TodoWrite and Remeber the Git Commit and Push Rules):${
+   D. Git Commit and Push Only Changed Files ${useCommitSigning ? 'Using MCP Tools' : 'Using Git Commands'} (Must be included in TodoWrite and Remeber the Git Commit and Push Rules):${
      handleSubmodules && eventData.claudeBranch
        ? `
       - First, check for submodules: Bash(test -f .gitmodules && cat .gitmodules || echo "No submodules found")
@@ -890,7 +890,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
         }      
       ${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
 
-   E. Update Metadata Based on Implementation (Must be included in TodoWrite and Remember the Update Metadata Rules):${
+   E. Update Metadata Based on Implementation Using Existing Labels (Must be included in TodoWrite and Remember the Update Metadata Rules):${
      manageIssueMetadata &&
      !eventData.isPR &&
      (metadataUpdateStrategy === "both" ||
