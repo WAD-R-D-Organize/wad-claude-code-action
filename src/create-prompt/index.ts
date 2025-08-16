@@ -80,6 +80,7 @@ export function buildAllowedToolsString(
       "Bash(bun:*)",
       "Bash(npm:*)",
       "Bash(git ls-files:*)",
+      "Bash(git submodule:*)",
     );
   }
 
