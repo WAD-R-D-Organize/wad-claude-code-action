@@ -778,11 +778,11 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    - Mark this todo as complete in the comment by checking the box: - [x].
 
    A. Analyze and Set Initial Issue Metadata (Must be included in TodoWrite):${
-    manageIssueMetadata &&
-    !eventData.isPR &&
-    (metadataUpdateStrategy === "both" ||
-      metadataUpdateStrategy === "initial_only")
-      ? `
+     manageIssueMetadata &&
+     !eventData.isPR &&
+     (metadataUpdateStrategy === "both" ||
+       metadataUpdateStrategy === "initial_only")
+       ? `
       - CRITICAL: First use mcp__github_issue_metadata__get_repository_labels to fetch ALL available labels
       - Use mcp__github_issue_metadata__get_issue_labels to check current issue labels
       - IMPORTANT: You can ONLY use labels that exist in the repository - you CANNOT create new labels
@@ -813,8 +813,8 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Skip this entire step - metadata will be reviewed at completion (step 4.E)
       - Mark this todo as complete with note: "Skipped - existing issue already has labels"
     `
-      : ""
-  }
+       : ""
+   }
 
 3. Understand the Request:
    - Extract the actual question or request from ${context.directPrompt ? "the <direct_prompt> tag above" : eventData.eventName === "issue_comment" || eventData.eventName === "pull_request_review_comment" || eventData.eventName === "pull_request_review" ? "the <trigger_comment> tag above" : `the comment/issue that contains '${context.triggerPhrase}'`}.
@@ -854,8 +854,8 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
 
    D. Git Commit and Push Only Changed Files (Must be included in TodoWrite):${
-      handleSubmodules && eventData.claudeBranch
-        ? `
+     handleSubmodules && eventData.claudeBranch
+       ? `
       - First, check for submodules: Bash(test -f .gitmodules && cat .gitmodules || echo "No submodules found")
       ${
         useCommitSigning
@@ -869,23 +869,23 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Document the submodule structure in your comment for reference`
       }
       - IMPORTANT: This information will be needed later if you make changes to submodules`
-        : ""
-    }
+       : ""
+   }
       - IMPORTANT: Always check file location before committing to use the correct tool
       - File location check strategy (applies to ALL changed files):
         1. For main repository files: Bash(git ls-files --error-unmatch <file-path> >/dev/null 2>&1 && echo "main repo" || echo "not in main")${
-      handleSubmodules && eventData.claudeBranch
-        ? `
+          handleSubmodules && eventData.claudeBranch
+            ? `
         2. For potential submodule files: Bash(git submodule foreach --quiet 'if [ -f "$1" ]; then echo "submodule: $name at $sm_path"; fi' -- <file-path>)`
-        : ""
-    }${
-      handleSubmodules && eventData.claudeBranch
-        ? `
+            : ""
+        }${
+          handleSubmodules && eventData.claudeBranch
+            ? `
       - CRITICAL COMMIT ORDER when submodules exist:
         1. First: Commit all submodule changes (this creates new commit IDs in submodules)
         2. Then: Commit main repository files INCLUDING updated submodule references`
-        : ""
-    }      
+            : ""
+        }      
       ${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
 
    E. Update Metadata Based on Implementation (Must be included in TodoWrite):${
@@ -918,7 +918,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
     `
        : ""
    }    
-5. Final Update:
+5. Final Update (Must be included in TodoWrite):
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
    - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
