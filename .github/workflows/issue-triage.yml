@@ -105,4 +105,4 @@ jobs:
           timeout_minutes: "5"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}          

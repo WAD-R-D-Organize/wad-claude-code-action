@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "fs/promises";
 import type { Mode, ModeOptions, ModeResult } from "../types";
 import { isAutomationContext } from "../../github/context";
 import type { PreparedContext } from "../../create-prompt/types";
+import type { FetchDataResult } from "../../github/data/fetcher";
 
 /**
  * Agent mode implementation.
@@ -115,7 +116,15 @@ export const agentMode: Mode = {
     };
   },
 
-  generatePrompt(context: PreparedContext): string {
+  generatePrompt(
+    context: PreparedContext,
+    githubData: FetchDataResult,
+    useCommitSigning: boolean,
+    manageIssueMetadata?: boolean,
+    metadataUpdateStrategy?: "initial_only" | "final_only" | "both",
+    metadataTypesEnabled?: boolean,
+    handleSubmodules?: boolean,
+  ): string {
     // Agent mode uses override or direct prompt, no GitHub data needed
     if (context.overridePrompt) {
       return context.overridePrompt;

@@ -84,19 +84,59 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   const workingPattern = /Claude Code is working[…\.]{1,3}(?:\s*<img[^>]*>)?/i;
   let bodyContent = originalBody.replace(workingPattern, "").trim();
 
-  // Check if there's a PR link in the content
+  // Check if there's a PRLink block in the content
+  let mainRepoPRLink = "";
+  let submodulePRLinks: Array<{ name: string; url: string }> = [];
+
+  // Find PRLink block
+  const prLinkBlockPattern = /===PRLink Start===\n([\s\S]*?)\n===PRLink End===/;
+  const prLinkBlockMatch = bodyContent.match(prLinkBlockPattern);
+
+  if (prLinkBlockMatch) {
+    const prLinksContent = prLinkBlockMatch[1];
+    
+    // Parse main repository PR link - handle URLs with parentheses in them
+    const mainPRPattern = /\[Create a PR\]\((https?:\/\/[^\s]+)\)/;
+    const mainMatch = prLinksContent.match(mainPRPattern);
+    if (mainMatch && mainMatch[1]) {
+      const encodedUrl = ensureProperlyEncodedUrl(mainMatch[1]);
+      if (encodedUrl) {
+        mainRepoPRLink = encodedUrl;
+      }
+    }
+    
+    // Parse submodule PR links - handle URLs with parentheses in them
+    const submodulePRPattern = /\[Create PR for ([^\]]+)\]\((https?:\/\/[^\s]+)\)/g;
+    let subMatch;
+    while ((subMatch = submodulePRPattern.exec(prLinksContent)) !== null) {
+      if (subMatch[1] && subMatch[2]) {
+        const encodedUrl = ensureProperlyEncodedUrl(subMatch[2]);
+        if (encodedUrl) {
+          submodulePRLinks.push({
+            name: subMatch[1],
+            url: encodedUrl
+          });
+        }
+      }
+    }
+    
+    // Remove the entire PRLink block from the content
+    bodyContent = bodyContent.replace(prLinkBlockMatch[0], "").trim();
+  }
+
+  // Fallback to old PR link pattern for backward compatibility
   let prLinkFromContent = "";
+  if (!mainRepoPRLink) {
+    const prLinkPattern = /\[Create .* PR\]\((.*)\)$/m;
+    const prLinkMatch = bodyContent.match(prLinkPattern);
 
-  // Match the entire markdown link structure
-  const prLinkPattern = /\[Create .* PR\]\((.*)\)$/m;
-  const prLinkMatch = bodyContent.match(prLinkPattern);
-
-  if (prLinkMatch && prLinkMatch[1]) {
-    const encodedUrl = ensureProperlyEncodedUrl(prLinkMatch[1]);
-    if (encodedUrl) {
-      prLinkFromContent = encodedUrl;
-      // Remove the PR link from the content
-      bodyContent = bodyContent.replace(prLinkMatch[0], "").trim();
+    if (prLinkMatch && prLinkMatch[1]) {
+      const encodedUrl = ensureProperlyEncodedUrl(prLinkMatch[1]);
+      if (encodedUrl) {
+        prLinkFromContent = encodedUrl;
+        // Remove the PR link from the content
+        bodyContent = bodyContent.replace(prLinkMatch[0], "").trim();
+      }
     }
   }
 
@@ -113,9 +153,9 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   let header = "";
 
   if (actionFailed) {
-    header = "**Claude encountered an error";
+    header = "**Claude 遇到錯誤";
     if (durationStr) {
-      header += ` after ${durationStr}`;
+      header += ` (${durationStr} 後)`;
     }
     header += "**";
   } else {
@@ -124,58 +164,88 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     const username =
       triggerUsername || (usernameMatch ? usernameMatch[1] : "user");
 
-    header = `**Claude finished @${username}'s task`;
+    header = `**Claude 已完成 @${username} 的任務`;
     if (durationStr) {
-      header += ` in ${durationStr}`;
+      header += ` (耗時 ${durationStr})`;
     }
     header += "**";
   }
 
   // Add links section
-  let links = ` —— [View job](${jobUrl})`;
+  let links = ` —— [檢視工作](${jobUrl})`;
 
-  // Add branch name with link
-  if (branchName || branchLink) {
-    let finalBranchName = branchName;
-    let branchUrl = "";
+  // Extract branch information
+  let finalBranchName = branchName;
+  let branchUrl = "";
 
-    if (branchLink) {
-      // Extract the branch URL from the link
-      const urlMatch = branchLink.match(/\((https:\/\/.*)\)/);
-      if (urlMatch && urlMatch[1]) {
-        branchUrl = urlMatch[1];
+  if (branchLink) {
+    // Extract the branch URL from the link
+    const urlMatch = branchLink.match(/\((https:\/\/.*)\)/);
+    if (urlMatch && urlMatch[1]) {
+      branchUrl = urlMatch[1];
+    }
+
+    // Extract branch name from link if not provided
+    if (!finalBranchName) {
+      const branchNameMatch = branchLink.match(/tree\/([^"'\)]+)/);
+      if (branchNameMatch) {
+        finalBranchName = branchNameMatch[1];
       }
+    }
+  }
 
-      // Extract branch name from link if not provided
-      if (!finalBranchName) {
-        const branchNameMatch = branchLink.match(/tree\/([^"'\)]+)/);
-        if (branchNameMatch) {
-          finalBranchName = branchNameMatch[1];
+  // If we don't have a URL yet but have a branch name, construct it
+  if (!branchUrl && finalBranchName) {
+    // Extract owner/repo from jobUrl
+    const repoMatch = jobUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\//);
+    if (repoMatch) {
+      branchUrl = `${GITHUB_SERVER_URL}/${repoMatch[1]}/${repoMatch[2]}/tree/${finalBranchName}`;
+    }
+  }
+
+  // Add PR links - support both new PRLink block format and legacy format
+  const prUrl =
+    mainRepoPRLink || prLinkFromContent || (prLink ? prLink.match(/\(([^)]+)\)/)?.[1] : "");
+  
+  // If we have PRLink block format (main repo + submodules)
+  if (mainRepoPRLink || submodulePRLinks.length > 0) {
+    // Multi-line format for PRLink block
+    if (finalBranchName && branchUrl) {
+      links += "\n\n主倉庫：[`" + finalBranchName + "`](" + branchUrl + ")";
+      if (mainRepoPRLink) {
+        links += " • [建立 PR ➔](" + mainRepoPRLink + ")";
+      }
+    }
+    
+    if (submodulePRLinks.length > 0) {
+      links += "\n子模組：";
+      for (const submodule of submodulePRLinks) {
+        links += "\n- " + submodule.name + "：";
+        
+        // Extract repository info from submodule PR URL to build correct branch URL
+        const submoduleRepoMatch = submodule.url.match(/github\.com\/([^\/]+)\/([^\/]+)\//);
+        if (finalBranchName && submoduleRepoMatch) {
+          // Build submodule-specific branch URL
+          const submoduleBranchUrl = `${GITHUB_SERVER_URL}/${submoduleRepoMatch[1]}/${submoduleRepoMatch[2]}/tree/${finalBranchName}`;
+          links += "[`" + finalBranchName + "`](" + submoduleBranchUrl + ")";
+        } else if (finalBranchName) {
+          links += "`" + finalBranchName + "`";
         }
+        
+        links += " • [建立 PR ➔](" + submodule.url + ")";
       }
     }
-
-    // If we don't have a URL yet but have a branch name, construct it
-    if (!branchUrl && finalBranchName) {
-      // Extract owner/repo from jobUrl
-      const repoMatch = jobUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\//);
-      if (repoMatch) {
-        branchUrl = `${GITHUB_SERVER_URL}/${repoMatch[1]}/${repoMatch[2]}/tree/${finalBranchName}`;
-      }
-    }
-
+  } else {
+    // Legacy single-line format
     if (finalBranchName && branchUrl) {
       links += ` • [\`${finalBranchName}\`](${branchUrl})`;
     } else if (finalBranchName) {
       links += ` • \`${finalBranchName}\``;
     }
-  }
-
-  // Add PR link (either from content or provided)
-  const prUrl =
-    prLinkFromContent || (prLink ? prLink.match(/\(([^)]+)\)/)?.[1] : "");
-  if (prUrl) {
-    links += ` • [Create PR ➔](${prUrl})`;
+    
+    if (prUrl) {
+      links += ` • [建立 PR ➔](${prUrl})`;
+    }
   }
 
   // Build the new body with blank line between header and separator

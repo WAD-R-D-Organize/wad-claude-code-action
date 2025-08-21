@@ -23,6 +23,18 @@ inputs:
     description: "The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)"
     required: false
     default: "claude/"
+  reuse_issue_branch:
+    description: "In tag mode, check for and reuse existing issue branches instead of creating new ones"
+    required: false
+    default: "false"
+  auto_assign_issues:
+    description: "Automatically assign users to issues when Claude starts working"
+    required: false
+    default: "false"
+  auto_assign_users:
+    description: "Comma-separated list of usernames to assign to issues (if not provided, will use issue creator)"
+    required: false
+    default: ""
   allowed_bots:
     description: "Comma-separated list of allowed bot usernames, or '*' to allow all bots. Empty string (default) allows no bots."
     required: false
@@ -118,6 +130,28 @@ inputs:
     description: "Restrict network access to these domains only (newline-separated). If not set, no restrictions are applied. Provider domains are auto-detected."
     required: false
     default: ""
+  handle_submodules:
+    description: "Enable automatic submodule handling (initialization, branch creation, and commits). When true, submodules will be automatically initialized and branches will be created in submodules to match the main branch."
+    required: false
+    default: "true"
+  submodule_branch_prefix:
+    description: "The prefix to use for submodule branches (defaults to same as main branch_prefix). Only used when handle_submodules is true."
+    required: false
+    default: ""
+
+  # Issue metadata management
+  manage_issue_metadata:
+    description: "Enable automatic issue label and type management"
+    required: false
+    default: "false"
+  metadata_update_strategy:
+    description: "When to update labels/types: 'initial_only', 'final_only', or 'both'"
+    required: false
+    default: "both"
+  metadata_types_enabled:
+    description: "Enable issue types management (requires org-level issue types feature)"
+    required: false
+    default: "false"
 
 outputs:
   execution_file:
@@ -153,6 +187,9 @@ runs:
         LABEL_TRIGGER: ${{ inputs.label_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}
+        REUSE_ISSUE_BRANCH: ${{ inputs.reuse_issue_branch }}
+        AUTO_ASSIGN_ISSUES: ${{ inputs.auto_assign_issues }}
+        AUTO_ASSIGN_USERS: ${{ inputs.auto_assign_users }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
@@ -167,6 +204,11 @@ runs:
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
         ALL_INPUTS: ${{ toJson(inputs) }}
+        HANDLE_SUBMODULES: ${{ inputs.handle_submodules }}
+        SUBMODULE_BRANCH_PREFIX: ${{ inputs.submodule_branch_prefix }}
+        MANAGE_ISSUE_METADATA: ${{ inputs.manage_issue_metadata }}
+        METADATA_UPDATE_STRATEGY: ${{ inputs.metadata_update_strategy }}
+        METADATA_TYPES_ENABLED: ${{ inputs.metadata_types_enabled }}
 
     - name: Install Base Action Dependencies
       if: steps.prepare.outputs.contains_trigger == 'true'

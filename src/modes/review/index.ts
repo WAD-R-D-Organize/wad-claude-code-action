@@ -76,6 +76,11 @@ export const reviewMode: Mode = {
   generatePrompt(
     context: PreparedContext,
     githubData: FetchDataResult,
+    useCommitSigning: boolean,
+    manageIssueMetadata?: boolean,
+    metadataUpdateStrategy?: "initial_only" | "final_only" | "both",
+    metadataTypesEnabled?: boolean,
+    handleSubmodules?: boolean,
   ): string {
     // Support overridePrompt
     if (context.overridePrompt) {

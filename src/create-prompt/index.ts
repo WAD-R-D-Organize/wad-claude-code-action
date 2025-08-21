@@ -38,6 +38,9 @@ export function buildAllowedToolsString(
   customAllowedTools?: string[],
   includeActionsTools: boolean = false,
   useCommitSigning: boolean = false,
+  manageIssueMetadata: boolean = false,
+  metadataTypesEnabled: boolean = false,
+  handleSubmodules: boolean = false,
 ): string {
   let baseTools = [...BASE_ALLOWED_TOOLS];
 
@@ -49,6 +52,7 @@ export function buildAllowedToolsString(
     baseTools.push(
       "mcp__github_file_ops__commit_files",
       "mcp__github_file_ops__delete_files",
+      "mcp__github_file_ops__commit_submodule_files",
     );
   } else {
     // When not using commit signing, add specific Bash git commands only
@@ -60,6 +64,23 @@ export function buildAllowedToolsString(
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git rm:*)",
+      "Bash(git submodule:*)",
+    );
+  }
+
+  // Add additional Bash tools when handling submodules
+  if (handleSubmodules) {
+    baseTools.push(
+      "Bash(test:*)",
+      "Bash(echo:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(mkdir:*)",
+      "Bash(bun:*)",
+      "Bash(npm:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git submodule:*)",
     );
   }
 
@@ -70,6 +91,23 @@ export function buildAllowedToolsString(
       "mcp__github_ci__get_workflow_run_details",
       "mcp__github_ci__download_job_log",
     );
+  }
+
+  // Add Issue Metadata MCP tools if enabled
+  if (manageIssueMetadata) {
+    baseTools.push(
+      "mcp__github_issue_metadata__get_repository_labels",
+      "mcp__github_issue_metadata__get_issue_labels",
+      "mcp__github_issue_metadata__update_issue_labels",
+    );
+
+    if (metadataTypesEnabled) {
+      baseTools.push(
+        "mcp__github_issue_metadata__get_organization_issue_types",
+        "mcp__github_issue_metadata__get_issue_type",
+        "mcp__github_issue_metadata__update_issue_type",
+      );
+    }
   }
 
   let allAllowedTools = baseTools.join(",");
@@ -419,6 +457,16 @@ function getCommitInstructions(
       return `
       - Push directly using mcp__github_file_ops__commit_files to the existing branch (works for both new and existing files).
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
+      
+      SUBMODULE FILES - Use mcp__github_file_ops__commit_submodule_files:
+      - CRITICAL: Only use this tool when files are located INSIDE a submodule directory
+      - Check if file is in submodule: The file location check in step D will determine this
+      - This tool handles both the submodule commit and parent repository submodule reference update
+      - Provide submodule_path, files (relative to submodule root), message (for submodule), and parent_message (for parent repo)
+      - Example: mcp__github_file_ops__commit_submodule_files with submodule_path="libs/my-lib", files=["src/main.js"], message="fix: update main", parent_message="chore: update submodule"
+      
+      MAIN REPOSITORY FILES - Use mcp__github_file_ops__commit_files:
+      - Use this for files in the root repository (not in submodules)
       - When pushing changes with this tool and the trigger user is not "Unknown", include a Co-authored-by trailer in the commit message.
       - Use: "${coAuthorLine}"`;
     } else {
@@ -426,6 +474,16 @@ function getCommitInstructions(
       - You are already on the correct branch (${eventData.claudeBranch || "the PR branch"}). Do not create a new branch.
       - Push changes directly to the current branch using mcp__github_file_ops__commit_files (works for both new and existing files)
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
+      
+      SUBMODULE FILES - Use mcp__github_file_ops__commit_submodule_files:
+      - CRITICAL: Only use this tool when files are located INSIDE a submodule directory
+      - Check if file is in submodule: The file location check in step D will determine this
+      - This tool handles both the submodule commit and parent repository submodule reference update
+      - Provide submodule_path, files (relative to submodule root), message (for submodule), and parent_message (for parent repo)
+      - Example: mcp__github_file_ops__commit_submodule_files with submodule_path="libs/my-lib", files=["src/main.js"], message="fix: update main", parent_message="chore: update submodule"
+      
+      MAIN REPOSITORY FILES - Use mcp__github_file_ops__commit_files:
+      - Use this for files in the root repository (not in submodules)
       - When pushing changes and the trigger user is not "Unknown", include a Co-authored-by trailer in the commit message.
       - Use: "${coAuthorLine}"`;
     }
@@ -442,7 +500,23 @@ function getCommitInstructions(
           Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
-        - Push to the remote: Bash(git push origin HEAD)`;
+        - Push to the remote: Bash(git push origin HEAD)
+      
+      SUBMODULE FILES - Use git commands in sequence:
+      - CRITICAL: Only use this approach when files are located INSIDE a submodule directory
+      - Check if file is in submodule: The file location check in step D will determine this
+      - Commit to submodules first, then update parent:
+        1. Navigate to submodule: Bash(cd <submodule-path>)
+        2. Stage submodule files: Bash(cd <submodule-path> && git add <files>)
+        3. Commit in submodule: Bash(cd <submodule-path> && git commit -m "<submodule-message>")
+        4. Push submodule: Bash(cd <submodule-path> && git push origin <branch-name>)
+        5. Return to parent: Bash(cd ..)
+        6. Stage submodule reference: Bash(git add <submodule-path>)
+        7. Commit parent update: Bash(git commit -m "<parent-message>")
+        8. Push parent: Bash(git push origin HEAD)
+      
+      MAIN REPOSITORY FILES - Use standard git commands:
+      - Use this for files in the root repository (not in submodules)`;
     } else {
       const branchName = eventData.claudeBranch || eventData.baseBranch;
       return `
@@ -456,7 +530,16 @@ function getCommitInstructions(
           Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
-        - Push to the remote: Bash(git push origin ${branchName})`;
+        - Push to the remote: Bash(git push origin ${branchName})
+      - SUBMODULE SUPPORT: For files within submodules, commit to submodules first, then update parent:
+        - Navigate to submodule: Bash(cd <submodule-path>)
+        - Stage submodule files: Bash(cd <submodule-path> && git add <files>)
+        - Commit in submodule: Bash(cd <submodule-path> && git commit -m "<submodule-message>")
+        - Push submodule: Bash(cd <submodule-path> && git push origin <branch-name>)
+        - Return to parent: Bash(cd ..)
+        - Stage submodule reference: Bash(git add <submodule-path>)
+        - Commit parent update: Bash(git commit -m "<parent-message>")
+        - Push parent: Bash(git push origin ${branchName})`;
     }
   }
 }
@@ -529,6 +612,10 @@ export function generatePrompt(
   githubData: FetchDataResult,
   useCommitSigning: boolean,
   mode: Mode,
+  manageIssueMetadata: boolean = false,
+  metadataUpdateStrategy: "initial_only" | "final_only" | "both" = "both",
+  metadataTypesEnabled: boolean = false,
+  handleSubmodules: boolean = false,
 ): string {
   if (context.overridePrompt) {
     return substitutePromptVariables(
@@ -539,7 +626,15 @@ export function generatePrompt(
   }
 
   // Use the mode's prompt generator
-  return mode.generatePrompt(context, githubData, useCommitSigning);
+  return mode.generatePrompt(
+    context,
+    githubData,
+    useCommitSigning,
+    manageIssueMetadata,
+    metadataUpdateStrategy,
+    metadataTypesEnabled,
+    handleSubmodules,
+  );
 }
 
 /**
@@ -550,6 +645,10 @@ export function generateDefaultPrompt(
   context: PreparedContext,
   githubData: FetchDataResult,
   useCommitSigning: boolean = false,
+  manageIssueMetadata: boolean = false,
+  metadataUpdateStrategy: "initial_only" | "final_only" | "both" = "both",
+  metadataTypesEnabled: boolean = false,
+  handleSubmodules: boolean = false,
 ): string {
   const {
     contextData,
@@ -680,6 +779,45 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    - Use the Read tool to look at relevant files for better context.
    - Mark this todo as complete in the comment by checking the box: - [x].
 
+   A. Analyze and Set Initial Issue Metadata (Must be included in TodoWrite):${
+     manageIssueMetadata &&
+     !eventData.isPR &&
+     (metadataUpdateStrategy === "both" ||
+       metadataUpdateStrategy === "initial_only")
+       ? `
+      - CRITICAL: First use mcp__github_issue_metadata__get_repository_labels to fetch ALL available labels
+      - Use mcp__github_issue_metadata__get_issue_labels to check current issue labels
+      - IMPORTANT: You can ONLY use labels that exist in the repository - you CANNOT create new labels
+      ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__get_organization_issue_types to fetch available issue types" : ""}
+      
+      DETERMINE ISSUE STATE:
+      - If issue has NO labels or only basic labels (like "bug", "feature"):
+        → This is a NEW ISSUE - perform full analysis
+      - If issue already has implementation-related labels (priority, components, size):
+        → This is an EXISTING ISSUE - only update status
+      
+      FOR NEW ISSUES (no previous classification):
+      Step 1 - Analyze the issue content to determine appropriate metadata:
+        - Issue category (bug, feature, documentation, enhancement, etc.)
+        - Priority level (high, medium, low, critical)
+        - Technical areas affected (frontend, backend, API, database, etc.)
+        - Complexity/size indicators (small, medium, large)
+        - Component labels based on content analysis
+        ${metadataTypesEnabled ? "- Issue type analysis: Based on content and nature, determine appropriate issue type" : ""}
+      Step 2 - Add initial status label if exists (e.g., "in-progress", "investigating")
+      Step 3 - If desired labels don't exist, document in comment and use closest alternatives
+      Step 4 - Apply all metadata using tools:
+        - Use mcp__github_issue_metadata__update_issue_labels to apply all determined labels
+        ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type to set appropriate issue type" : ""}
+        - Document your reasoning in your comment
+      
+      FOR EXISTING ISSUES (already classified):
+      - Skip this entire step - metadata will be reviewed at completion (step 4.E)
+      - Mark this todo as complete with note: "Skipped - existing issue already has labels"
+    `
+       : ""
+   }
+
 3. Understand the Request:
    - Extract the actual question or request from ${context.directPrompt ? "the <direct_prompt> tag above" : eventData.eventName === "issue_comment" || eventData.eventName === "pull_request_review_comment" || eventData.eventName === "pull_request_review" ? "the <trigger_comment> tag above" : `the comment/issue that contains '${context.triggerPhrase}'`}.
    - CRITICAL: If other users requested changes in other comments, DO NOT implement those changes unless the trigger comment explicitly asks you to implement them.
@@ -706,25 +844,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    B. For Straightforward Changes:
       - Use file system tools to make the change locally.
       - If you discover related tasks (e.g., updating tests), add them to the todo list.
-      - Mark each subtask as completed as you progress.${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
-      ${
-        eventData.claudeBranch
-          ? `- Provide a URL to create a PR manually in this format:
-        [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
-        - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
-          Example: ${GITHUB_SERVER_URL}/${context.repository}/compare/main...feature-branch (correct)
-          NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
-        - IMPORTANT: Ensure all URL parameters are properly encoded - spaces should be encoded as %20, not left as spaces
-          Example: Instead of "fix: update welcome message", use "fix%3A%20update%20welcome%20message"
-        - The target-branch should be '${eventData.baseBranch}'.
-        - The branch-name is the current branch: ${eventData.claudeBranch}
-        - The body should include:
-          - A clear description of the changes
-          - Reference to the original ${eventData.isPR ? "PR" : "issue"}
-          - The signature: "Generated with [Claude Code](https://claude.ai/code)"
-        - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"`
-          : ""
-      }
+      - Mark each subtask as completed as you progress.
 
    C. For Complex Changes:
       - Break down the implementation into subtasks in your comment checklist.
@@ -732,15 +852,137 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Remove unnecessary todos if requirements change.
       - Explain your reasoning for each decision.
       - Mark each subtask as completed as you progress.
-      - Follow the same pushing strategy as for straightforward changes (see section B above).
+      - Follow the same commit and push strategy as defined in section D above.
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
 
-5. Final Update:
+   D. Git Commit and Push Only Changed Files ${useCommitSigning ? "Using MCP Tools" : "Using Git Commands"} (Must be included in TodoWrite and Remember to Follow Git Commit and Push Rules):${
+     handleSubmodules && eventData.claudeBranch
+       ? `
+      - First, check for submodules: Bash(test -f .gitmodules && cat .gitmodules || echo "No submodules found")
+      ${
+        useCommitSigning
+          ? `- If .gitmodules exists, note the submodules present
+      - In commit signing mode, submodule operations are handled automatically by MCP tools
+      - Document the submodule names and paths from .gitmodules for reference`
+          : `- If .gitmodules exists, initialize submodules: Bash(git submodule update --init --recursive)
+      - For each submodule found, check its current branch and remote URL:
+        - Bash(cd <submodule-path> && git branch --show-current)
+        - Bash(cd <submodule-path> && git remote get-url origin)
+      - Document the submodule structure in your comment for reference`
+      }
+      - IMPORTANT: This information will be needed later if you make changes to submodules`
+       : ""
+   }
+      - IMPORTANT: Always check file location before committing to use the correct tool
+      - File location check strategy (applies to ALL changed files):
+        1. For main repository files: Bash(git ls-files --error-unmatch <file-path> && echo "main repo" || echo "not in main")${
+          handleSubmodules && eventData.claudeBranch
+            ? `
+        2. For potential submodule files: Bash(git submodule foreach --quiet 'if [ -f "$1" ]; then echo "submodule: $name at $sm_path"; fi' -- <file-path>)`
+            : ""
+        }${
+          handleSubmodules && eventData.claudeBranch
+            ? `
+      - CRITICAL COMMIT ORDER when submodules exist:
+        1. First: Commit all submodule changes (this creates new commit IDs in submodules)
+        2. Then: Commit main repository files INCLUDING updated submodule references`
+            : ""
+        }      
+      ${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
+
+   E. Update Metadata Based on Implementation Using Existing Labels (Must be included in TodoWrite and Remember to Follow Update Metadata Rules):${
+     manageIssueMetadata &&
+     !eventData.isPR &&
+     (metadataUpdateStrategy === "both" ||
+       metadataUpdateStrategy === "final_only")
+       ? `
+      - Review the work completed and reassess the issue
+      - Use mcp__github_issue_metadata__get_repository_labels to check available labels
+      - Use mcp__github_issue_metadata__get_issue_labels to check current labels
+      ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__get_issue_type to check current type" : ""}
+      
+      REASSESS ALL LABELS BASED ON IMPLEMENTATION:
+      - Update status labels to reflect completion:
+        - Remove "in-progress" or "investigating"
+        - Add completion status (e.g., "resolved", "needs-review", "partially-complete")
+      - Adjust size/complexity labels based on actual effort required
+      - Add/update component labels based on areas actually modified during implementation
+      - Update priority if the implementation revealed different urgency level
+      - Update category/type if the nature of work changed during implementation
+      ${metadataTypesEnabled ? "- Update issue type if implementation revealed different nature" : ""}
+      
+      APPLY CHANGES:
+      - IMPORTANT: Only use labels that exist in the repository
+      - If desired labels don't exist, document the status in your comment and use closest alternatives
+      - Use mcp__github_issue_metadata__update_issue_labels for all label updates
+      ${metadataTypesEnabled ? "- Use mcp__github_issue_metadata__update_issue_type if type needs changing" : ""}
+      - Document the reasoning for any metadata changes in your comment
+    `
+       : ""
+   }    
+5. Final Update (Must be included in TodoWrite and Remember to Follow PR LINKS Rules including MAIN REPOSITORY and SUBMODULE PR LINKS with Special Markers if needed):
+   - IMPORTANT: When adding this step to TodoWrite, the TodoWrite title must include ALL tasks to be completed in this Final Update section.
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
    - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
-   - If you changed any files locally, you must update them in the remote branch via ${useCommitSigning ? "mcp__github_file_ops__commit_files" : "git commands (add, commit, push)"} before saying that you're done.
-   ${eventData.claudeBranch ? `- If you created anything in your branch, your comment must include the PR URL with prefilled title and body mentioned above.` : ""}
+   - If you changed any files locally, you must update them in the remote branch via ${useCommitSigning ? `mcp__github_file_ops__commit_files${handleSubmodules ? " or mcp__github_file_ops__commit_submodule_files (for submodule files)" : ""}` : `git commands (add, commit, push)${handleSubmodules ? " and submodule commands if needed" : ""}`} before saying that you're done.
+   ${
+     eventData.claudeBranch
+       ? `- If you created anything in your branch, generate and include PR links as follows:
+  
+   MAIN REPOSITORY PR LINK:
+   - Provide a URL to create a PR manually in this format:
+     [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>&assignees=${context.triggerUsername || ""})
+   - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
+     Example: ${GITHUB_SERVER_URL}/${context.repository}/compare/main...feature-branch (correct)
+     NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
+   - IMPORTANT: Ensure all URL parameters are properly encoded - spaces should be encoded as %20, not left as spaces
+     Example: Instead of "fix: update welcome message", use "fix%3A%20update%20welcome%20message"
+   - The target-branch should be '${eventData.baseBranch}'.
+   - The branch-name is the current branch: ${eventData.claudeBranch}
+   - The body should include:
+     - A clear description of the changes
+     - ${eventData.isPR ? `Reference to the original PR: "Related to #${eventData.prNumber || "[PR number]"}"` : `Auto-close reference: "Closes #${("issueNumber" in eventData && eventData.issueNumber) || "[issue number]"}" (this will automatically close the issue when PR is merged)`}
+     - The signature: "Generated with [Claude Code](https://claude.ai/code)"
+   - IMPORTANT: The link text "[Create a PR]" must always be in English, never translate it
+   ${
+     handleSubmodules
+       ? `  
+   SUBMODULE PR LINKS:
+   - When submodules have changes, you need PR links for BOTH main repository AND modified submodules
+   - Steps to generate submodule PR links:
+     1. Check which submodules have changes: Bash(git submodule status)
+     2. For each submodule with changes, get the remote URL: Bash(cd <submodule-path> && git remote get-url origin)
+     3. Create a PR link for each modified submodule in this format:
+       [Create PR for <submodule-name>](<submodule-github-url>/compare/${eventData.baseBranch}...<submodule-branch>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>&assignees=${context.triggerUsername || ""})
+     4. The submodule PR body should include:
+       - A clear description of what was changed in the submodule
+       - Reference to the original ${eventData.isPR ? "PR" : "issue"}: "Related to ${context.repository}#${eventData.isPR ? eventData.prNumber || "[PR number]" : ("issueNumber" in eventData && eventData.issueNumber) || "[issue number]"}"
+       - The signature: "Generated with [Claude Code](https://claude.ai/code)"
+     5. Use the same URL encoding rules as the main repository
+     6. The submodule branch name should match the main branch: ${eventData.claudeBranch}
+     7. IMPORTANT: The link text "[Create PR for <submodule-name>]" must always be in English, never translate it
+     8. Example format for submodule PR links:
+       [Create PR for libs/shared](https://github.com/owner/shared-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)
+       [Create PR for libs/utils](https://github.com/owner/utils-lib/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=...)`
+       : ""
+   }
+   
+   - After generating the PR links, wrap ${handleSubmodules ? "ALL PR links (main repository and submodules)" : "the main repository PR link"} in special markers:
+   ===PRLink Start===
+   [Create a PR](main-repo-url)
+   ${
+     handleSubmodules
+       ? `
+   [Create PR for submodule1](submodule1-url)
+   [Create PR for submodule2](submodule2-url)`
+       : ""
+   }
+   ===PRLink End===
+   - IMPORTANT: The link text must always be in English
+   - PR Link do not add any explanatory text, just the PR links within the markers`
+       : ""
+   }
 
 Important Notes:
 - All communication must happen through GitHub PR comments.
@@ -752,16 +994,22 @@ ${eventData.isPR && !eventData.claudeBranch ? `- Always push to the existing bra
 ${
   useCommitSigning
     ? `- Use mcp__github_file_ops__commit_files for making commits (works for both new and existing files, single or multiple). Use mcp__github_file_ops__delete_files for deleting files (supports deleting single or multiple files atomically), or mcp__github__delete_file for deleting a single file. Edit files locally, and the tool will read the content from the same path on disk.
+  - SUBMODULE COMMITS: Use mcp__github_file_ops__commit_submodule_files for files within submodules (automatically handles both submodule commit and parent reference update).
   Tool usage examples:
   - mcp__github_file_ops__commit_files: {"files": ["path/to/file1.js", "path/to/file2.py"], "message": "feat: add new feature"}
-  - mcp__github_file_ops__delete_files: {"files": ["path/to/old.js"], "message": "chore: remove deprecated file"}`
+  - mcp__github_file_ops__delete_files: {"files": ["path/to/old.js"], "message": "chore: remove deprecated file"}
+  - mcp__github_file_ops__commit_submodule_files: {"submodule_path": "libs/my-lib", "files": ["src/main.js"], "message": "fix: update logic", "parent_message": "chore: update submodule"}`
     : `- Use git commands via the Bash tool for version control (remember that you have access to these git commands):
   - Stage files: Bash(git add <files>)
   - Commit changes: Bash(git commit -m "<message>")
   - Push to remote: Bash(git push origin <branch>) (NEVER force push)
   - Delete files: Bash(git rm <files>) followed by commit and push
   - Check status: Bash(git status)
-  - View diff: Bash(git diff)`
+  - View diff: Bash(git diff)
+  - SUBMODULE SUPPORT: Use Bash(git submodule) commands for submodule operations:
+    - Initialize submodules: Bash(git submodule update --init --recursive)
+    - Navigate to submodule: Bash(cd <submodule-path>)
+    - Work in submodule then commit to submodule first, then return to parent and commit submodule reference update`
 }
 - Display the todo list as a checklist in the GitHub comment and mark things off as you go.
 - REPOSITORY SETUP INSTRUCTIONS: The repository's CLAUDE.md file(s) contain critical repo-specific setup instructions, development guidelines, and preferences. Always read and follow these files, particularly the root CLAUDE.md, as they provide essential context for working with the codebase effectively.
@@ -846,6 +1094,10 @@ export async function createPrompt(
       githubData,
       context.inputs.useCommitSigning,
       mode,
+      context.inputs.manageIssueMetadata,
+      context.inputs.metadataUpdateStrategy,
+      context.inputs.metadataTypesEnabled,
+      context.inputs.handleSubmodules,
     );
 
     // Log the final prompt to console
@@ -882,6 +1134,9 @@ export async function createPrompt(
       combinedAllowedTools,
       hasActionsReadPermission,
       context.inputs.useCommitSigning,
+      context.inputs.manageIssueMetadata,
+      context.inputs.metadataTypesEnabled,
+      context.inputs.handleSubmodules,
     );
     const allDisallowedTools = buildDisallowedToolsString(
       combinedDisallowedTools,

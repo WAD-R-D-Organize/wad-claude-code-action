@@ -1,0 +1,33 @@
+name: Claude Code Action - Reuse Issue Branch Example
+on:
+  issues:
+    types: [opened, assigned]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-code:
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Claude Code
+        uses: anthropic-ai/claude-code-action@main
+        with:
+          # Enable reuse of existing issue branches
+          reuse_issue_branch: true
+          
+          # Branch configuration
+          branch_prefix: "claude/"
+          
+          # Authentication
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          # Trigger configuration
+          trigger_phrase: "@claude"
+          
+          # Other options
+          use_commit_signing: true
+          handle_submodules: true

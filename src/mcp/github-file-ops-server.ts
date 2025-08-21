@@ -53,6 +53,70 @@ const server = new McpServer({
   version: "0.0.1",
 });
 
+// Submodule support types and helpers
+type SubmoduleInfo = {
+  path: string;
+  url: string;
+  branch?: string;
+};
+
+// Parse .gitmodules file to get submodule information
+async function getSubmodules(): Promise<SubmoduleInfo[]> {
+  try {
+    const gitmodulesPath = join(REPO_DIR, ".gitmodules");
+    const content = await readFile(gitmodulesPath, "utf-8");
+    
+    const submodules: SubmoduleInfo[] = [];
+    const sections = content.split(/\[submodule\s+"([^"]+)"\]/);
+    
+    for (let i = 1; i < sections.length; i += 2) {
+      const name = sections[i];
+      const config = sections[i + 1];
+      
+      const pathMatch = config.match(/path\s*=\s*(.+)/);
+      const urlMatch = config.match(/url\s*=\s*(.+)/);
+      const branchMatch = config.match(/branch\s*=\s*(.+)/);
+      
+      if (pathMatch && urlMatch) {
+        submodules.push({
+          path: pathMatch[1].trim(),
+          url: urlMatch[1].trim(),
+          branch: branchMatch?.[1]?.trim(),
+        });
+      }
+    }
+    
+    return submodules;
+  } catch (error) {
+    return [];
+  }
+}
+
+// Check if a file path is within a submodule
+function getSubmoduleForPath(filePath: string, submodules: SubmoduleInfo[]): SubmoduleInfo | null {
+  const normalizedPath = filePath.replace(/^\/+/, "");
+  
+  for (const submodule of submodules) {
+    if (normalizedPath.startsWith(submodule.path + "/") || normalizedPath === submodule.path) {
+      return submodule;
+    }
+  }
+  
+  return null;
+}
+
+// Extract owner/repo from GitHub URL
+function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
+  const githubMatch = url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+  if (githubMatch) {
+    return {
+      owner: githubMatch[1],
+      repo: githubMatch[2],
+    };
+  }
+  return null;
+}
+
 // Helper function to get or create branch reference
 async function getOrCreateBranchRef(
   owner: string,
@@ -638,6 +702,396 @@ server.tool(
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error: ${errorMessage}`,
+          },
+        ],
+        error: errorMessage,
+        isError: true,
+      };
+    }
+  },
+);
+
+// Commit files to submodule tool
+server.tool(
+  "commit_submodule_files",
+  "Commit files to a submodule and update parent repository's submodule reference",
+  {
+    submodule_path: z.string().describe("Path to the submodule (e.g. 'libs/my-submodule')"),
+    files: z
+      .array(z.string())
+      .describe(
+        'Array of file paths relative to submodule root (e.g. ["src/main.js", "README.md"]). All files must exist locally.',
+      ),
+    message: z.string().describe("Commit message for the submodule"),
+    parent_message: z.string().describe("Commit message for updating the parent repository's submodule reference"),
+  },
+  async ({ submodule_path, files, message, parent_message }) => {
+    try {
+      const githubToken = process.env.GITHUB_TOKEN;
+      if (!githubToken) {
+        throw new Error("GITHUB_TOKEN environment variable is required");
+      }
+
+      // Get submodule info
+      const submodules = await getSubmodules();
+      const submodule = submodules.find(s => s.path === submodule_path);
+      
+      if (!submodule) {
+        throw new Error(`Submodule not found at path: ${submodule_path}`);
+      }
+
+      // Parse submodule URL to get owner/repo
+      const submoduleRepo = parseGitHubUrl(submodule.url);
+      if (!submoduleRepo) {
+        throw new Error(`Could not parse GitHub URL for submodule: ${submodule.url}`);
+      }
+
+      // Process file paths relative to submodule
+      const processedFiles = files.map((filePath) => {
+        if (filePath.startsWith("/")) {
+          return filePath.slice(1);
+        }
+        return filePath;
+      });
+
+      // 1. Commit to submodule repository
+      const submoduleBaseSha = await getOrCreateBranchRef(
+        submoduleRepo.owner,
+        submoduleRepo.repo,
+        BRANCH_NAME,
+        githubToken,
+      );
+
+      // 2. Get the base commit for submodule
+      const submoduleCommitUrl = `${GITHUB_API_URL}/repos/${submoduleRepo.owner}/${submoduleRepo.repo}/git/commits/${submoduleBaseSha}`;
+      const submoduleCommitResponse = await fetch(submoduleCommitUrl, {
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${githubToken}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      });
+
+      if (!submoduleCommitResponse.ok) {
+        throw new Error(`Failed to get submodule base commit: ${submoduleCommitResponse.status}`);
+      }
+
+      const submoduleCommitData = (await submoduleCommitResponse.json()) as GitHubCommit;
+      const submoduleBaseTreeSha = submoduleCommitData.tree.sha;
+
+      // 3. Create tree entries for submodule files
+      const submoduleTreeEntries = await Promise.all(
+        processedFiles.map(async (filePath) => {
+          const fullPath = join(REPO_DIR, submodule_path, filePath);
+
+          // Check if file is binary
+          const isBinaryFile =
+            /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|exe|bin|woff|woff2|ttf|eot)$/i.test(
+              filePath,
+            );
+
+          if (isBinaryFile) {
+            // For binary files, create a blob first
+            const binaryContent = await readFile(fullPath);
+
+            const blobUrl = `${GITHUB_API_URL}/repos/${submoduleRepo.owner}/${submoduleRepo.repo}/git/blobs`;
+            const blobResponse = await fetch(blobUrl, {
+              method: "POST",
+              headers: {
+                Accept: "application/vnd.github+json",
+                Authorization: `Bearer ${githubToken}`,
+                "X-GitHub-Api-Version": "2022-11-28",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                content: binaryContent.toString("base64"),
+                encoding: "base64",
+              }),
+            });
+
+            if (!blobResponse.ok) {
+              const errorText = await blobResponse.text();
+              throw new Error(
+                `Failed to create blob for ${filePath}: ${blobResponse.status} - ${errorText}`,
+              );
+            }
+
+            const blobData = (await blobResponse.json()) as { sha: string };
+
+            return {
+              path: filePath,
+              mode: "100644",
+              type: "blob",
+              sha: blobData.sha,
+            };
+          } else {
+            // For text files, include content directly
+            const content = await readFile(fullPath, "utf-8");
+            return {
+              path: filePath,
+              mode: "100644",
+              type: "blob",
+              content: content,
+            };
+          }
+        }),
+      );
+
+      // 4. Create new tree for submodule
+      const submoduleTreeUrl = `${GITHUB_API_URL}/repos/${submoduleRepo.owner}/${submoduleRepo.repo}/git/trees`;
+      const submoduleTreeResponse = await fetch(submoduleTreeUrl, {
+        method: "POST",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${githubToken}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          base_tree: submoduleBaseTreeSha,
+          tree: submoduleTreeEntries,
+        }),
+      });
+
+      if (!submoduleTreeResponse.ok) {
+        const errorText = await submoduleTreeResponse.text();
+        throw new Error(
+          `Failed to create submodule tree: ${submoduleTreeResponse.status} - ${errorText}`,
+        );
+      }
+
+      const submoduleTreeData = (await submoduleTreeResponse.json()) as GitHubTree;
+
+      // 5. Create new commit in submodule
+      const submoduleNewCommitUrl = `${GITHUB_API_URL}/repos/${submoduleRepo.owner}/${submoduleRepo.repo}/git/commits`;
+      const submoduleNewCommitResponse = await fetch(submoduleNewCommitUrl, {
+        method: "POST",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${githubToken}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: message,
+          tree: submoduleTreeData.sha,
+          parents: [submoduleBaseSha],
+        }),
+      });
+
+      if (!submoduleNewCommitResponse.ok) {
+        const errorText = await submoduleNewCommitResponse.text();
+        throw new Error(
+          `Failed to create submodule commit: ${submoduleNewCommitResponse.status} - ${errorText}`,
+        );
+      }
+
+      const submoduleNewCommitData = (await submoduleNewCommitResponse.json()) as GitHubNewCommit;
+
+      // 6. Update submodule branch reference
+      const submoduleUpdateRefUrl = `${GITHUB_API_URL}/repos/${submoduleRepo.owner}/${submoduleRepo.repo}/git/refs/heads/${BRANCH_NAME}`;
+      
+      await retryWithBackoff(
+        async () => {
+          const submoduleUpdateRefResponse = await fetch(submoduleUpdateRefUrl, {
+            method: "PATCH",
+            headers: {
+              Accept: "application/vnd.github+json",
+              Authorization: `Bearer ${githubToken}`,
+              "X-GitHub-Api-Version": "2022-11-28",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              sha: submoduleNewCommitData.sha,
+              force: false,
+            }),
+          });
+
+          if (!submoduleUpdateRefResponse.ok) {
+            const errorText = await submoduleUpdateRefResponse.text();
+            const error = new Error(
+              `Failed to update submodule reference: ${submoduleUpdateRefResponse.status} - ${errorText}`,
+            );
+
+            if (submoduleUpdateRefResponse.status === 403) {
+              throw error;
+            }
+
+            console.error("Non-retryable error:", submoduleUpdateRefResponse.status);
+            throw error;
+          }
+        },
+        {
+          maxAttempts: 3,
+          initialDelayMs: 1000,
+          maxDelayMs: 5000,
+          backoffFactor: 2,
+        },
+      );
+
+      // 7. Now update parent repository's submodule reference
+      const owner = REPO_OWNER;
+      const repo = REPO_NAME;
+      const branch = BRANCH_NAME;
+
+      // Get parent repository base commit
+      const parentBaseSha = await getOrCreateBranchRef(owner, repo, branch, githubToken);
+      
+      const parentCommitUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/commits/${parentBaseSha}`;
+      const parentCommitResponse = await fetch(parentCommitUrl, {
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${githubToken}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      });
+
+      if (!parentCommitResponse.ok) {
+        throw new Error(`Failed to get parent base commit: ${parentCommitResponse.status}`);
+      }
+
+      const parentCommitData = (await parentCommitResponse.json()) as GitHubCommit;
+      const parentBaseTreeSha = parentCommitData.tree.sha;
+
+      // Create tree entry for submodule reference update
+      const parentTreeEntries = [
+        {
+          path: submodule_path,
+          mode: "160000", // Gitlink mode for submodules
+          type: "commit",
+          sha: submoduleNewCommitData.sha,
+        },
+      ];
+
+      // Create new tree for parent
+      const parentTreeUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/trees`;
+      const parentTreeResponse = await fetch(parentTreeUrl, {
+        method: "POST",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${githubToken}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          base_tree: parentBaseTreeSha,
+          tree: parentTreeEntries,
+        }),
+      });
+
+      if (!parentTreeResponse.ok) {
+        const errorText = await parentTreeResponse.text();
+        throw new Error(
+          `Failed to create parent tree: ${parentTreeResponse.status} - ${errorText}`,
+        );
+      }
+
+      const parentTreeData = (await parentTreeResponse.json()) as GitHubTree;
+
+      // Create new commit in parent
+      const parentNewCommitUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/commits`;
+      const parentNewCommitResponse = await fetch(parentNewCommitUrl, {
+        method: "POST",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${githubToken}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: parent_message,
+          tree: parentTreeData.sha,
+          parents: [parentBaseSha],
+        }),
+      });
+
+      if (!parentNewCommitResponse.ok) {
+        const errorText = await parentNewCommitResponse.text();
+        throw new Error(
+          `Failed to create parent commit: ${parentNewCommitResponse.status} - ${errorText}`,
+        );
+      }
+
+      const parentNewCommitData = (await parentNewCommitResponse.json()) as GitHubNewCommit;
+
+      // Update parent branch reference
+      const parentUpdateRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
+      
+      await retryWithBackoff(
+        async () => {
+          const parentUpdateRefResponse = await fetch(parentUpdateRefUrl, {
+            method: "PATCH",
+            headers: {
+              Accept: "application/vnd.github+json",
+              Authorization: `Bearer ${githubToken}`,
+              "X-GitHub-Api-Version": "2022-11-28",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              sha: parentNewCommitData.sha,
+              force: false,
+            }),
+          });
+
+          if (!parentUpdateRefResponse.ok) {
+            const errorText = await parentUpdateRefResponse.text();
+            const error = new Error(
+              `Failed to update parent reference: ${parentUpdateRefResponse.status} - ${errorText}`,
+            );
+
+            if (parentUpdateRefResponse.status === 403) {
+              throw error;
+            }
+
+            console.error("Non-retryable error:", parentUpdateRefResponse.status);
+            throw error;
+          }
+        },
+        {
+          maxAttempts: 3,
+          initialDelayMs: 1000,
+          maxDelayMs: 5000,
+          backoffFactor: 2,
+        },
+      );
+
+      const result = {
+        submodule: {
+          path: submodule_path,
+          commit: {
+            sha: submoduleNewCommitData.sha,
+            message: submoduleNewCommitData.message,
+            author: submoduleNewCommitData.author.name,
+            date: submoduleNewCommitData.author.date,
+          },
+          files: processedFiles.map((path) => ({ path })),
+        },
+        parent: {
+          commit: {
+            sha: parentNewCommitData.sha,
+            message: parentNewCommitData.message,
+            author: parentNewCommitData.author.name,
+            date: parentNewCommitData.author.date,
+          },
+          submodule_reference: submoduleNewCommitData.sha,
+        },
+      };
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         content: [
           {

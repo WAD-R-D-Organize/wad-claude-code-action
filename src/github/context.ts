@@ -74,10 +74,18 @@ type BaseContext = {
     overridePrompt: string;
     baseBranch?: string;
     branchPrefix: string;
+    reuseIssueBranch: boolean;
+    autoAssignIssues: boolean;
+    autoAssignUsers: string[];
     useStickyComment: boolean;
     additionalPermissions: Map<string, string>;
     useCommitSigning: boolean;
     allowedBots: string;
+    handleSubmodules: boolean;
+    submoduleBranchPrefix: string;
+    manageIssueMetadata: boolean;
+    metadataUpdateStrategy: "initial_only" | "final_only" | "both";
+    metadataTypesEnabled: boolean;
   };
 };
 
@@ -132,12 +140,24 @@ export function parseGitHubContext(): GitHubContext {
       overridePrompt: process.env.OVERRIDE_PROMPT ?? "",
       baseBranch: process.env.BASE_BRANCH,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
+      reuseIssueBranch: process.env.REUSE_ISSUE_BRANCH === "true",
+      autoAssignIssues: process.env.AUTO_ASSIGN_ISSUES === "true",
+      autoAssignUsers: parseMultilineInput(process.env.AUTO_ASSIGN_USERS ?? ""),
       useStickyComment: process.env.USE_STICKY_COMMENT === "true",
       additionalPermissions: parseAdditionalPermissions(
         process.env.ADDITIONAL_PERMISSIONS ?? "",
       ),
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
       allowedBots: process.env.ALLOWED_BOTS ?? "",
+      handleSubmodules: process.env.HANDLE_SUBMODULES !== "false",
+      submoduleBranchPrefix: process.env.SUBMODULE_BRANCH_PREFIX ?? "",
+      manageIssueMetadata: process.env.MANAGE_ISSUE_METADATA === "true",
+      metadataUpdateStrategy:
+        (process.env.METADATA_UPDATE_STRATEGY as
+          | "initial_only"
+          | "final_only"
+          | "both") ?? "both",
+      metadataTypesEnabled: process.env.METADATA_TYPES_ENABLED === "true",
     },
   };
 

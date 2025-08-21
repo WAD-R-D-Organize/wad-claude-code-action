@@ -1,0 +1,132 @@
+name: Claude Issue Assistant
+
+on:
+  issue_comment:
+    types: [created]
+  # pull_request_review_comment:
+  #   types: [created]
+  issues:
+    types: [opened, assigned]
+  # pull_request_review:
+  #   types: [submitted]
+
+jobs:
+  claude-code-action:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@wadclaude')) ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@wadclaude'))
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+      checks: write
+    steps:
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          # Specify the current repository and any submodule repositories
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            ${{ github.event.repository.name }}
+            WAD_Submodules_VER310
+            WAD_ERPUIDLL
+            WAD_ERP_Submodules
+            WAD_ERP_Database
+            EW_Front_end_Submodules
+
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          # Use the generated GitHub App token for both main repo and submodules access
+          token: ${{ steps.generate-token.outputs.token }}
+          # Recursively checkout all submodules (including nested ones)
+          submodules: recursive
+          # Use full depth to ensure all submodule references are available
+          fetch-depth: 0
+
+      - name: Run Claude Code Action
+        uses: WAD-R-D-Organize/wad-claude-code-action@wad-master
+        with:
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Or use OAuth token instead:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.generate-token.outputs.token }}
+          timeout_minutes: "60"
+          # Use MCP Server with GitHub App for seamless submodule operations
+          use_commit_signing: true
+          base_branch: master
+          assignee_trigger: "@wadclaude"
+          trigger_phrase: "@wadclaude"
+          # Enable automatic submodule handling (default: true, can be omitted)
+          handle_submodules: true
+          reuse_issue_branch: true # Reuse existing branches for issues if available
+          auto_assign_issues: true # Automatically assign issues assignees
+          manage_issue_metadata: true # Automatically manage issue metadata
+          metadata_update_strategy: "both" # 初始和最終都更新
+          metadata_types_enabled: true # 啟用 issue types（需組織支援）
+          custom_instructions: |
+            Always respond in Traditional Chinese (繁體中文)
+
+            ## 專案特定子模組說明
+            Available submodules in this project:
+            - WAD_Submodules_VER310 - 主要業務邏輯模組
+            - WAD_ERPUIDLL - ERP UI 元件庫
+            - WAD_ERP_Submodules - ERP 核心子模組
+            - WAD_ERP_Database - 資料庫架構模組
+            - EW_Front_end_Submodules - 前端共用元件
+
+            ## 子模組處理原則
+            1. 當修改涉及子模組時，先在子模組中進行變更
+            2. 因為使用 use_commit_signing，請用 mcp__github_file_ops__commit_submodule_files 處理子模組檔案
+            3. 子模組 commit message 應清楚描述變更內容
+            4. 主倉庫 commit message 應說明為何更新子模組引用
+            5. 根據變更內容判斷是否需要在對應的子模組中進行修改
+
+            !IMPORTANT!: Always ultrathink
+          # ## Issue 元數據管理指引
+          # 本專案已啟用自動 Issue 元數據管理，請遵循以下原則：
+
+          # ### 標籤分類規則
+          # - **類型標籤**：bug（錯誤修復）、enhancement（功能增強）、feature（新功能）、documentation（文檔）
+          # - **優先級標籤**：critical（緊急）、high（高）、medium（中等）、low（低）
+          # - **模組標籤**：frontend（前端）、backend（後端）、database（資料庫）、ui（使用者介面）
+          # - **狀態標籤**：in-progress（進行中）、needs-review（需要審查）、resolved（已解決）、blocked（阻塞）
+
+          # ### 元數據處理策略
+          # 1. 新 Issue：進行完整分析並設定所有相關標籤
+          # 2. 現有 Issue：主要更新狀態標籤，保留既有分類
+          # 3. 涉及子模組變更時：額外添加相關子模組標籤
+          # 4. 若系統建議的標籤不存在，在註解中說明並使用最接近的替代標籤
+
+          # ## 分支重用策略
+          # 本專案啟用了分支重用功能（reuse_issue_branch: true）：
+          # 1. 每個 Issue 會嘗試重用既有的對應分支
+          # 2. 分支命名格式：claude/issue-{issue_number}
+          # 3. 若分支已存在且有未合併的變更，繼續在該分支上工作
+          # 4. 子模組分支也會相應重用，確保變更的一致性
+
+          # ## 子模組與元數據協同處理
+          # 當變更涉及特定子模組時：
+          # 1. 更新相關的子模組標籤（如：WAD_ERPUIDLL、WAD_ERP_Database）
+          # 2. 根據變更複雜度適當調整 size 標籤
+          # 3. 在 Issue 註解中明確說明哪些子模組受到影響
+          # 4. 確保子模組的變更也反映在主專案的元數據中
+          # mode: tag  # Default: responds to @claude mentions
+          # Optional: Restrict network access to specific domains only
+        # experimental_allowed_domains: |
+        #   .anthropic.com
+        #   .github.com
+        #   api.github.com
+        #   .githubusercontent.com
+        #   bun.sh
+        #   registry.npmjs.org
+        #   .blob.core.windows.net
+        # Explicitly list all GitHub MCP tools for clarity and security
+        allowed_tools: |
+          Bash(grep:*)

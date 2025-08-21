@@ -129,6 +129,25 @@ export async function prepareMcpConfig(
       };
     }
 
+    // Include issue metadata server if enabled
+    if (context.inputs.manageIssueMetadata) {
+      baseMcpConfig.mcpServers.github_issue_metadata = {
+        command: "bun",
+        args: [
+          "run",
+          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-issue-metadata-server.ts`,
+        ],
+        env: {
+          GITHUB_TOKEN: githubToken,
+          REPO_OWNER: owner,
+          REPO_NAME: repo,
+          ISSUE_NUMBER: context.entityNumber?.toString() || "",
+          ENABLE_TYPES: context.inputs.metadataTypesEnabled.toString(),
+          GITHUB_API_URL: GITHUB_API_URL,
+        },
+      };
+    }
+
     // Only add CI server if we have actions:read permission and we're in a PR context
     const hasActionsReadPermission =
       context.inputs.additionalPermissions.get("actions") === "read";

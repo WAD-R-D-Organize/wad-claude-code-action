@@ -1,6 +1,7 @@
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
 import { $ } from "bun";
+import { getSubmodules, cleanupSubmoduleBranches } from "./submodule";
 
 export async function checkAndCommitOrDeleteBranch(
   octokit: Octokits,
@@ -116,6 +117,14 @@ export async function checkAndCommitOrDeleteBranch(
   // Delete the branch if it has no commits
   if (shouldDeleteBranch && claudeBranch) {
     try {
+      // First cleanup submodule branches
+      const submodules = await getSubmodules();
+      if (submodules.length > 0) {
+        console.log(`Cleaning up submodule branches for: ${claudeBranch}`);
+        await cleanupSubmoduleBranches(claudeBranch, submodules, octokit);
+      }
+
+      // Then delete the main branch
       await octokit.rest.git.deleteRef({
         owner,
         repo,

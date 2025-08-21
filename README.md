@@ -48,7 +48,21 @@ This command will guide you through setting up the GitHub app and required secre
 - [Cloud Providers](./docs/cloud-providers.md) - AWS Bedrock and Google Vertex AI setup
 - [Capabilities & Limitations](./docs/capabilities-and-limitations.md) - What Claude can and cannot do
 - [Security](./docs/security.md) - Access control, permissions, and commit signing
+- [Reuse Issue Branch](./docs/reuse-issue-branch.md) - Reuse existing issue branches to avoid creating new branches
 - [FAQ](./docs/faq.md) - Common questions and troubleshooting
+
+## 🛠️ Self-hosted Runner Support
+
+When using self-hosted GitHub runners with Claude Code Action, you may encounter workspace cleanup issues, especially when working with submodules and branch reuse functionality. Self-hosted runners don't automatically clean workspace directories between jobs, which can lead to Git conflicts with untracked files.
+
+Our comprehensive cleanup solution provides:
+
+- 🧹 **Automatic Workspace Cleanup**: Runner hooks that clean Git repositories and submodules after each job
+- 🔄 **Branch Reuse Support**: Resolves conflicts when reusing issue branches with the `reuse_issue_branch` feature  
+- 🎯 **Targeted Cleaning**: Repository-specific cleanup strategies to avoid affecting other projects
+- ⚙️ **Easy Setup**: Simple script installation with environment variable configuration
+
+**[→ View detailed setup guide](./docs/self-hosted-runner-cleanup.md)**
 
 ## 📚 FAQ
 
