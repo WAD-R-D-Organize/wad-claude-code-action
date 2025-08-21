@@ -779,7 +779,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    - Use the Read tool to look at relevant files for better context.
    - Mark this todo as complete in the comment by checking the box: - [x].
 
-   A. Analyze and Set Initial Issue Metadata (Must be included in TodoWrite):${
+   A. Analyze and Set Initial Issue Metadata Using Existing Labels (Must be included in TodoWrite):${
      manageIssueMetadata &&
      !eventData.isPR &&
      (metadataUpdateStrategy === "both" ||
