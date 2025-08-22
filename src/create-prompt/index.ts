@@ -779,7 +779,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
    - Use the Read tool to look at relevant files for better context.
    - Mark this todo as complete in the comment by checking the box: - [x].
 
-   A. Analyze and Set Initial Issue Metadata Using Existing Labels (Must be included in TodoWrite):${
+   A. Analyze and Set Initial Issue Metadata Using Existing Labels (Must be included in TodoWrite tool):${
      manageIssueMetadata &&
      !eventData.isPR &&
      (metadataUpdateStrategy === "both" ||
@@ -855,7 +855,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
       - Follow the same commit and push strategy as defined in section D above.
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
 
-   D. Git Commit and Push Only Changed Files ${useCommitSigning ? "Using MCP Tools" : "Using Git Commands"} (Must be included in TodoWrite and Remember to Follow Git Commit and Push Rules):${
+   D. Git Commit and Push Only Changed Files ${useCommitSigning ? "Using MCP Tools" : "Using Git Commands"} (Must be included in TodoWrite tool and Remember to Follow Git Commit and Push Rules):${
      handleSubmodules && eventData.claudeBranch
        ? `
       - First, check for submodules: Bash(test -f .gitmodules && cat .gitmodules || echo "No submodules found")
@@ -890,7 +890,7 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
         }      
       ${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
 
-   E. Update Metadata Based on Implementation Using Existing Labels (Must be included in TodoWrite and Remember to Follow Update Metadata Rules):${
+   E. Update Metadata Based on Implementation Using Existing Labels (Must be included in TodoWrite tool and Remember to Follow Update Metadata Rules):${
      manageIssueMetadata &&
      !eventData.isPR &&
      (metadataUpdateStrategy === "both" ||
@@ -920,8 +920,8 @@ ${context.directPrompt ? `   - CRITICAL: Direct user instructions were provided 
     `
        : ""
    }    
-5. Final Update (Must be included in TodoWrite and Remember to Follow PR LINKS Rules including MAIN REPOSITORY and SUBMODULE PR LINKS with Special Markers if needed):
-   - IMPORTANT: When adding this step to TodoWrite, the TodoWrite title must include ALL tasks to be completed in this Final Update section.
+5. Final Update (Must be included in TodoWrite tool and Remember to Follow PR LINKS Rules including MAIN REPOSITORY and SUBMODULE PR LINKS with Special Markers if needed):
+   - IMPORTANT: When adding this step to TodoWrite tool, the TodoWrite tool title must include ALL tasks to be completed in this Final Update section.
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
    - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
