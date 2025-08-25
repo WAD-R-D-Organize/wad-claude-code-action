@@ -785,7 +785,7 @@ ${
   (metadataUpdateStrategy === "both" ||
     metadataUpdateStrategy === "initial_only")
     ? `
-3. Analyze and Set Initial Issue Metadata Using Existing Labels (Must be included in TodoWrite tool):
+3. Analyze and Set Initial Issue Metadata Using Existing Labels (Must be included in TodoWrite tool and Remember to Follow Initial Metadata Analysis Rules):
    - CRITICAL: First use mcp__github_issue_metadata__get_repository_labels to fetch ALL available labels
    - Use mcp__github_issue_metadata__get_issue_labels to check current issue labels
    - IMPORTANT: You can ONLY use labels that exist in the repository - you CANNOT create new labels
