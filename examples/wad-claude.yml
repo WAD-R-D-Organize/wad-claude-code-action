@@ -57,7 +57,6 @@ jobs:
           # Or use OAuth token instead:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.generate-token.outputs.token }}
-          timeout_minutes: "60"
           # Use MCP Server with GitHub App for seamless submodule operations
           use_commit_signing: true
           base_branch: master
@@ -69,8 +68,8 @@ jobs:
           auto_assign_issues: true # Automatically assign issues assignees
           manage_issue_metadata: true # Automatically manage issue metadata
           metadata_types_enabled: true # 啟用 issue types（需組織支援）
-          custom_instructions: |
-            Always respond in Traditional Chinese (繁體中文)
+          claude_args: |
+            --system-prompt 'Always respond in Traditional Chinese (繁體中文)
 
             ## 專案特定子模組說明
             Available submodules in this project:
@@ -87,7 +86,7 @@ jobs:
             4. 主倉庫 commit message 應說明為何更新子模組引用
             5. 根據變更內容判斷是否需要在對應的子模組中進行修改
 
-            !IMPORTANT!: Always ultrathink
+            !IMPORTANT!: Always ultrathink' --allowedTools "Bash(grep:*)"
           # ## Issue 元數據管理指引
           # 本專案已啟用自動 Issue 元數據管理，請遵循以下原則：
 
@@ -116,7 +115,6 @@ jobs:
           # 2. 根據變更複雜度適當調整 size 標籤
           # 3. 在 Issue 註解中明確說明哪些子模組受到影響
           # 4. 確保子模組的變更也反映在主專案的元數據中
-          # mode: tag  # Default: responds to @claude mentions
           # Optional: Restrict network access to specific domains only
         # experimental_allowed_domains: |
         #   .anthropic.com
@@ -126,6 +124,3 @@ jobs:
         #   bun.sh
         #   registry.npmjs.org
         #   .blob.core.windows.net
-        # Explicitly list all GitHub MCP tools for clarity and security
-        allowed_tools: |
-          Bash(grep:*)
