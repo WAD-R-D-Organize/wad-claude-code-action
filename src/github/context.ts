@@ -84,7 +84,6 @@ type BaseContext = {
     handleSubmodules: boolean;
     submoduleBranchPrefix: string;
     manageIssueMetadata: boolean;
-    metadataUpdateStrategy: "initial_only" | "final_only" | "both";
     metadataTypesEnabled: boolean;
   };
 };
@@ -152,11 +151,6 @@ export function parseGitHubContext(): GitHubContext {
       handleSubmodules: process.env.HANDLE_SUBMODULES !== "false",
       submoduleBranchPrefix: process.env.SUBMODULE_BRANCH_PREFIX ?? "",
       manageIssueMetadata: process.env.MANAGE_ISSUE_METADATA === "true",
-      metadataUpdateStrategy:
-        (process.env.METADATA_UPDATE_STRATEGY as
-          | "initial_only"
-          | "final_only"
-          | "both") ?? "both",
       metadataTypesEnabled: process.env.METADATA_TYPES_ENABLED === "true",
     },
   };

@@ -66,7 +66,6 @@ export type Mode = {
     githubData: FetchDataResult,
     useCommitSigning: boolean,
     manageIssueMetadata?: boolean,
-    metadataUpdateStrategy?: "initial_only" | "final_only" | "both",
     metadataTypesEnabled?: boolean,
     handleSubmodules?: boolean,
   ): string;

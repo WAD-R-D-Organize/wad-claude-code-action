@@ -56,8 +56,6 @@ jobs:
           # submodule_branch_prefix: "claude-sub/"
           # Optional: enable automatic issue metadata management
           # manage_issue_metadata: true
-          # Optional: control when to update issue metadata
-          # metadata_update_strategy: "both"  # initial_only, final_only, or both
           # Optional: enable issue types management (requires org-level feature)
           # metadata_types_enabled: true
 ```
@@ -101,7 +99,6 @@ jobs:
 | `handle_submodules`            | Enable automatic submodule handling (initialization, branch creation, and commits)                                                    | No       | `true`    |
 | `submodule_branch_prefix`      | The prefix to use for submodule branches (defaults to same as main branch_prefix). Only used when handle_submodules is true           | No       | ""        |
 | `manage_issue_metadata`        | Enable automatic issue label and type management                                                                                      | No       | `false`   |
-| `metadata_update_strategy`     | When to update labels/types: 'initial_only', 'final_only', or 'both'                                                                  | No       | `both`    |
 | `metadata_types_enabled`       | Enable issue types management (requires org-level issue types feature)                                                                | No       | `false`   |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
@@ -161,7 +158,6 @@ Claude can automatically manage issue labels and types based on the content and 
 ```yaml
 with:
   manage_issue_metadata: true
-  metadata_update_strategy: "both" # When to update: initial_only, final_only, or both
   metadata_types_enabled: true # Enable issue types (requires organization feature)
 ```
 
@@ -200,11 +196,6 @@ For EXISTING issues (subsequent executions):
   - Add component labels for modified areas
   - Change type if nature evolved during implementation
 
-### Update Strategies
-
-- **`initial_only`**: Only set metadata when Claude first analyzes the issue
-- **`final_only`**: Only update metadata after completing the work
-- **`both`**: Set initial metadata and update after completion (recommended)
 
 ### Label Limitations
 

@@ -144,10 +144,6 @@ inputs:
     description: "Enable automatic issue label and type management"
     required: false
     default: "false"
-  metadata_update_strategy:
-    description: "When to update labels/types: 'initial_only', 'final_only', or 'both'"
-    required: false
-    default: "both"
   metadata_types_enabled:
     description: "Enable issue types management (requires org-level issue types feature)"
     required: false
@@ -207,7 +203,6 @@ runs:
         HANDLE_SUBMODULES: ${{ inputs.handle_submodules }}
         SUBMODULE_BRANCH_PREFIX: ${{ inputs.submodule_branch_prefix }}
         MANAGE_ISSUE_METADATA: ${{ inputs.manage_issue_metadata }}
-        METADATA_UPDATE_STRATEGY: ${{ inputs.metadata_update_strategy }}
         METADATA_TYPES_ENABLED: ${{ inputs.metadata_types_enabled }}
 
     - name: Install Base Action Dependencies

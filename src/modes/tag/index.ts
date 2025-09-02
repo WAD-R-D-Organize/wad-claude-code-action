@@ -140,7 +140,6 @@ export const tagMode: Mode = {
     githubData: FetchDataResult,
     useCommitSigning: boolean,
     manageIssueMetadata?: boolean,
-    metadataUpdateStrategy?: "initial_only" | "final_only" | "both",
     metadataTypesEnabled?: boolean,
     handleSubmodules?: boolean,
   ): string {
@@ -149,7 +148,6 @@ export const tagMode: Mode = {
       githubData,
       useCommitSigning,
       manageIssueMetadata || false,
-      metadataUpdateStrategy || "both",
       metadataTypesEnabled || false,
       handleSubmodules || false,
     );
