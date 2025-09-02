@@ -10,7 +10,10 @@ import {
 import { setupBranch } from "../../github/operations/branch";
 import { configureGitAuth } from "../../github/operations/git-config";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
-import { fetchGitHubData } from "../../github/data/fetcher";
+import {
+  fetchGitHubData,
+  extractTriggerTimestamp,
+} from "../../github/data/fetcher";
 import { createPrompt, generateDefaultPrompt } from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
 import type { PreparedContext } from "../../create-prompt/types";
@@ -82,12 +85,15 @@ export const tagMode: Mode = {
       }
     }
 
+    const triggerTime = extractTriggerTimestamp(context);
+
     const githubData = await fetchGitHubData({
       octokits: octokit,
       repository: `${context.repository.owner}/${context.repository.repo}`,
       prNumber: context.entityNumber.toString(),
       isPR: context.isPR,
       triggerUsername: context.actor,
+      triggerTime,
     });
 
     // Setup branch
@@ -112,26 +118,78 @@ export const tagMode: Mode = {
 
     await createPrompt(tagMode, modeContext, githubData, context);
 
-    // Get MCP configuration
-    const additionalMcpConfig = process.env.MCP_CONFIG || "";
-    const mcpConfig = await prepareMcpConfig({
+    // Get our GitHub MCP servers configuration
+    const ourMcpConfig = await prepareMcpConfig({
       githubToken,
       owner: context.repository.owner,
       repo: context.repository.repo,
       branch: branchInfo.claudeBranch || branchInfo.currentBranch,
       baseBranch: branchInfo.baseBranch,
-      additionalMcpConfig,
       claudeCommentId: commentId.toString(),
-      allowedTools: context.inputs.allowedTools,
+      allowedTools: [],
       context,
     });
 
-    core.setOutput("mcp_config", mcpConfig);
+    // Don't output mcp_config separately anymore - include in claude_args
+
+    // Build claude_args for tag mode with required tools
+    // Tag mode REQUIRES these tools to function properly
+    const tagModeTools = [
+      "Edit",
+      "MultiEdit",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Write",
+      "mcp__github_comment__update_claude_comment",
+      "mcp__github_ci__get_ci_status",
+      "mcp__github_ci__get_workflow_run_details",
+      "mcp__github_ci__download_job_log",
+    ];
+
+    // Add git commands when not using commit signing
+    if (!context.inputs.useCommitSigning) {
+      tagModeTools.push(
+        "Bash(git add:*)",
+        "Bash(git commit:*)",
+        "Bash(git push:*)",
+        "Bash(git status:*)",
+        "Bash(git diff:*)",
+        "Bash(git log:*)",
+        "Bash(git rm:*)",
+      );
+    } else {
+      // When using commit signing, use MCP file ops tools
+      tagModeTools.push(
+        "mcp__github_file_ops__commit_files",
+        "mcp__github_file_ops__delete_files",
+      );
+    }
+
+    const userClaudeArgs = process.env.CLAUDE_ARGS || "";
+
+    // Build complete claude_args with multiple --mcp-config flags
+    let claudeArgs = "";
+
+    // Add our GitHub servers config
+    const escapedOurConfig = ourMcpConfig.replace(/'/g, "'\\''");
+    claudeArgs = `--mcp-config '${escapedOurConfig}'`;
+
+    // Add required tools for tag mode
+    claudeArgs += ` --allowedTools "${tagModeTools.join(",")}"`;
+
+    // Append user's claude_args (which may have more --mcp-config flags)
+    if (userClaudeArgs) {
+      claudeArgs += ` ${userClaudeArgs}`;
+    }
+
+    core.setOutput("claude_args", claudeArgs.trim());
 
     return {
       commentId,
       branchInfo,
-      mcpConfig,
+      mcpConfig: ourMcpConfig,
     };
   },
 
@@ -143,7 +201,7 @@ export const tagMode: Mode = {
     metadataTypesEnabled?: boolean,
     handleSubmodules?: boolean,
   ): string {
-    return generateDefaultPrompt(
+    const defaultPrompt = generateDefaultPrompt(
       context,
       githubData,
       useCommitSigning,
@@ -151,6 +209,20 @@ export const tagMode: Mode = {
       metadataTypesEnabled || false,
       handleSubmodules || false,
     );
+
+    // If a custom prompt is provided, inject it into the tag mode prompt
+    if (context.githubContext?.inputs?.prompt) {
+      return (
+        defaultPrompt +
+        `
+
+<custom_instructions>
+${context.githubContext.inputs.prompt}
+</custom_instructions>`
+      );
+    }
+
+    return defaultPrompt;    
   },
 
   getSystemPrompt() {

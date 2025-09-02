@@ -1,13 +1,12 @@
+import type { GitHubContext } from "../github/context";
+
 export type CommonFields = {
   repository: string;
   claudeCommentId: string;
   triggerPhrase: string;
   triggerUsername?: string;
-  customInstructions?: string;
-  allowedTools?: string;
-  disallowedTools?: string;
-  directPrompt?: string;
-  overridePrompt?: string;
+  prompt?: string;
+  claudeBranch?: string;
 };
 
 type PullRequestReviewCommentEvent = {
@@ -102,4 +101,5 @@ export type EventData =
 // Combined type with separate eventData field
 export type PreparedContext = CommonFields & {
   eventData: EventData;
+  githubContext?: GitHubContext;
 };

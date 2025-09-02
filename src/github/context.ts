@@ -6,7 +6,21 @@ import type {
   PullRequestEvent,
   PullRequestReviewEvent,
   PullRequestReviewCommentEvent,
+  WorkflowRunEvent,
 } from "@octokit/webhooks-types";
+
+/**
+ * Parse comma-separated input string into array of trimmed strings
+ * @param input - Comma-separated string input
+ * @returns Array of trimmed non-empty strings
+ */
+function parseMultilineInput(input: string): string[] {
+  return input
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
 // Custom types for GitHub Actions events that aren't webhooks
 export type WorkflowDispatchEvent = {
   action?: never;
@@ -34,8 +48,6 @@ export type ScheduleEvent = {
     };
   };
 };
-import type { ModeName } from "../modes/types";
-import { DEFAULT_MODE, isValidMode } from "../modes/registry";
 
 // Event name constants for better maintainability
 const ENTITY_EVENT_NAMES = [
@@ -46,7 +58,11 @@ const ENTITY_EVENT_NAMES = [
   "pull_request_review_comment",
 ] as const;
 
-const AUTOMATION_EVENT_NAMES = ["workflow_dispatch", "schedule"] as const;
+const AUTOMATION_EVENT_NAMES = [
+  "workflow_dispatch",
+  "schedule",
+  "workflow_run",
+] as const;
 
 // Derive types from constants for better maintainability
 type EntityEventName = (typeof ENTITY_EVENT_NAMES)[number];
@@ -63,28 +79,24 @@ type BaseContext = {
   };
   actor: string;
   inputs: {
-    mode: ModeName;
+    prompt: string;
     triggerPhrase: string;
     assigneeTrigger: string;
     labelTrigger: string;
-    allowedTools: string[];
-    disallowedTools: string[];
-    customInstructions: string;
-    directPrompt: string;
-    overridePrompt: string;
     baseBranch?: string;
     branchPrefix: string;
     reuseIssueBranch: boolean;
     autoAssignIssues: boolean;
     autoAssignUsers: string[];
     useStickyComment: boolean;
-    additionalPermissions: Map<string, string>;
     useCommitSigning: boolean;
     allowedBots: string;
     handleSubmodules: boolean;
     submoduleBranchPrefix: string;
     manageIssueMetadata: boolean;
     metadataTypesEnabled: boolean;
+    trackProgress: boolean;
+    additionalPermissions: string;
   };
 };
 
@@ -101,10 +113,10 @@ export type ParsedGitHubContext = BaseContext & {
   isPR: boolean;
 };
 
-// Context for automation events (workflow_dispatch, schedule)
+// Context for automation events (workflow_dispatch, schedule, workflow_run)
 export type AutomationContext = BaseContext & {
   eventName: AutomationEventName;
-  payload: WorkflowDispatchEvent | ScheduleEvent;
+  payload: WorkflowDispatchEvent | ScheduleEvent | WorkflowRunEvent;
 };
 
 // Union type for all contexts
@@ -112,11 +124,6 @@ export type GitHubContext = ParsedGitHubContext | AutomationContext;
 
 export function parseGitHubContext(): GitHubContext {
   const context = github.context;
-
-  const modeInput = process.env.MODE ?? DEFAULT_MODE;
-  if (!isValidMode(modeInput)) {
-    throw new Error(`Invalid mode: ${modeInput}.`);
-  }
 
   const commonFields = {
     runId: process.env.GITHUB_RUN_ID!,
@@ -128,30 +135,24 @@ export function parseGitHubContext(): GitHubContext {
     },
     actor: context.actor,
     inputs: {
-      mode: modeInput as ModeName,
+      prompt: process.env.PROMPT || "",
       triggerPhrase: process.env.TRIGGER_PHRASE ?? "@claude",
       assigneeTrigger: process.env.ASSIGNEE_TRIGGER ?? "",
       labelTrigger: process.env.LABEL_TRIGGER ?? "",
-      allowedTools: parseMultilineInput(process.env.ALLOWED_TOOLS ?? ""),
-      disallowedTools: parseMultilineInput(process.env.DISALLOWED_TOOLS ?? ""),
-      customInstructions: process.env.CUSTOM_INSTRUCTIONS ?? "",
-      directPrompt: process.env.DIRECT_PROMPT ?? "",
-      overridePrompt: process.env.OVERRIDE_PROMPT ?? "",
       baseBranch: process.env.BASE_BRANCH,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
       reuseIssueBranch: process.env.REUSE_ISSUE_BRANCH === "true",
       autoAssignIssues: process.env.AUTO_ASSIGN_ISSUES === "true",
       autoAssignUsers: parseMultilineInput(process.env.AUTO_ASSIGN_USERS ?? ""),
       useStickyComment: process.env.USE_STICKY_COMMENT === "true",
-      additionalPermissions: parseAdditionalPermissions(
-        process.env.ADDITIONAL_PERMISSIONS ?? "",
-      ),
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
       allowedBots: process.env.ALLOWED_BOTS ?? "",
       handleSubmodules: process.env.HANDLE_SUBMODULES !== "false",
       submoduleBranchPrefix: process.env.SUBMODULE_BRANCH_PREFIX ?? "",
       manageIssueMetadata: process.env.MANAGE_ISSUE_METADATA === "true",
       metadataTypesEnabled: process.env.METADATA_TYPES_ENABLED === "true",
+      trackProgress: process.env.TRACK_PROGRESS === "true",
+      additionalPermissions: process.env.ADDITIONAL_PERMISSIONS ?? "",
     },
   };
 
@@ -220,36 +221,16 @@ export function parseGitHubContext(): GitHubContext {
         payload: context.payload as unknown as ScheduleEvent,
       };
     }
+    case "workflow_run": {
+      return {
+        ...commonFields,
+        eventName: "workflow_run",
+        payload: context.payload as unknown as WorkflowRunEvent,
+      };
+    }
     default:
       throw new Error(`Unsupported event type: ${context.eventName}`);
   }
-}
-
-export function parseMultilineInput(s: string): string[] {
-  return s
-    .split(/,|[\n\r]+/)
-    .map((tool) => tool.replace(/#.+$/, ""))
-    .map((tool) => tool.trim())
-    .filter((tool) => tool.length > 0);
-}
-
-export function parseAdditionalPermissions(s: string): Map<string, string> {
-  const permissions = new Map<string, string>();
-  if (!s || !s.trim()) {
-    return permissions;
-  }
-
-  const lines = s.trim().split("\n");
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (trimmedLine) {
-      const [key, value] = trimmedLine.split(":").map((part) => part.trim());
-      if (key && value) {
-        permissions.set(key, value);
-      }
-    }
-  }
-  return permissions;
 }
 
 export function isIssuesEvent(

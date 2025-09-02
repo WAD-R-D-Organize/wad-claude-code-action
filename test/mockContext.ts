@@ -11,24 +11,15 @@ import type {
 } from "@octokit/webhooks-types";
 
 const defaultInputs = {
-  mode: "tag" as const,
+  prompt: "",
   triggerPhrase: "/claude",
   assigneeTrigger: "",
   labelTrigger: "",
-  anthropicModel: "claude-3-7-sonnet-20250219",
-  allowedTools: [] as string[],
-  disallowedTools: [] as string[],
-  customInstructions: "",
-  directPrompt: "",
-  overridePrompt: "",
-  useBedrock: false,
-  useVertex: false,
-  timeoutMinutes: 30,
   branchPrefix: "claude/",
   useStickyComment: false,
-  additionalPermissions: new Map<string, string>(),
   useCommitSigning: false,
   allowedBots: "",
+  trackProgress: false,
 };
 
 const defaultRepository = {
@@ -37,8 +28,12 @@ const defaultRepository = {
   full_name: "test-owner/test-repo",
 };
 
+type MockContextOverrides = Omit<Partial<ParsedGitHubContext>, "inputs"> & {
+  inputs?: Partial<ParsedGitHubContext["inputs"]>;
+};
+
 export const createMockContext = (
-  overrides: Partial<ParsedGitHubContext> = {},
+  overrides: MockContextOverrides = {},
 ): ParsedGitHubContext => {
   const baseContext: ParsedGitHubContext = {
     runId: "1234567890",
@@ -52,15 +47,19 @@ export const createMockContext = (
     inputs: defaultInputs,
   };
 
-  if (overrides.inputs) {
-    overrides.inputs = { ...defaultInputs, ...overrides.inputs };
-  }
+  const mergedInputs = overrides.inputs
+    ? { ...defaultInputs, ...overrides.inputs }
+    : defaultInputs;
 
-  return { ...baseContext, ...overrides };
+  return { ...baseContext, ...overrides, inputs: mergedInputs };
+};
+
+type MockAutomationOverrides = Omit<Partial<AutomationContext>, "inputs"> & {
+  inputs?: Partial<AutomationContext["inputs"]>;
 };
 
 export const createMockAutomationContext = (
-  overrides: Partial<AutomationContext> = {},
+  overrides: MockAutomationOverrides = {},
 ): AutomationContext => {
   const baseContext: AutomationContext = {
     runId: "1234567890",
@@ -72,7 +71,11 @@ export const createMockAutomationContext = (
     inputs: defaultInputs,
   };
 
-  return { ...baseContext, ...overrides };
+  const mergedInputs = overrides.inputs
+    ? { ...defaultInputs, ...overrides.inputs }
+    : { ...defaultInputs };
+
+  return { ...baseContext, ...overrides, inputs: mergedInputs };
 };
 
 export const mockIssueOpenedContext: ParsedGitHubContext = {
