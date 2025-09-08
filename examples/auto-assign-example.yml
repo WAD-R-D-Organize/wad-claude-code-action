@@ -1,0 +1,38 @@
+name: Claude Code Action - Auto Assign Example
+on:
+  issues:
+    types: [opened, assigned]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-code:
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Claude Code
+        uses: anthropic-ai/claude-code-action@main
+        with:
+          # Enable automatic issue assignment
+          auto_assign_issues: true
+
+          # Optional: specify custom users to assign
+          # If not provided, will assign to the issue creator
+          auto_assign_users: "maintainer1,maintainer2"
+
+          # Authentication
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Trigger configuration
+          trigger_phrase: "@claude"
+
+          # Branch configuration
+          branch_prefix: "claude/"
+
+          # Other useful options
+          use_commit_signing: true
+          handle_submodules: true
+          reuse_issue_branch: true

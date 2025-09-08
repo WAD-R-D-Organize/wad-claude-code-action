@@ -9,6 +9,15 @@ import type {
   WorkflowRunEvent,
 } from "@octokit/webhooks-types";
 import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "./constants";
+
+// Utility function to parse comma-separated input values
+function parseMultilineInput(input: string): string[] {
+  return input
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
 // Custom types for GitHub Actions events that aren't webhooks
 export type WorkflowDispatchEvent = {
   action?: never;
@@ -94,6 +103,9 @@ type BaseContext = {
     botName: string;
     allowedBots: string;
     allowedNonWriteUsers: string;
+    reuseIssueBranch: boolean;
+    autoAssignIssues: boolean;
+    autoAssignUsers: string[];
     trackProgress: boolean;
   };
 };
@@ -149,6 +161,9 @@ export function parseGitHubContext(): GitHubContext {
       botName: process.env.BOT_NAME ?? CLAUDE_BOT_LOGIN,
       allowedBots: process.env.ALLOWED_BOTS ?? "",
       allowedNonWriteUsers: process.env.ALLOWED_NON_WRITE_USERS ?? "",
+      reuseIssueBranch: process.env.REUSE_ISSUE_BRANCH === "true",
+      autoAssignIssues: process.env.AUTO_ASSIGN_ISSUES === "true",
+      autoAssignUsers: parseMultilineInput(process.env.AUTO_ASSIGN_USERS ?? ""),
       trackProgress: process.env.TRACK_PROGRESS === "true",
     },
   };

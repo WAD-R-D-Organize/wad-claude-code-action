@@ -31,6 +31,18 @@ inputs:
     description: "Comma-separated list of usernames to allow without write permissions, or '*' to allow all users. Only works when github_token input is provided. WARNING: Use with extreme caution - this bypasses security checks and should only be used for workflows with very limited permissions (e.g., issue labeling)."
     required: false
     default: ""
+  reuse_issue_branch:
+    description: "In tag mode, check for and reuse existing issue branches instead of creating new ones"
+    required: false
+    default: "false"
+  auto_assign_issues:
+    description: "Automatically assign users to issues when Claude starts working"
+    required: false
+    default: "false"
+  auto_assign_users:
+    description: "Comma-separated list of usernames to assign to issues (if not provided, will use issue creator)"
+    required: false
+    default: ""
 
   # Claude Code configuration
   prompt:
@@ -153,6 +165,9 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        REUSE_ISSUE_BRANCH: ${{ inputs.reuse_issue_branch }}
+        AUTO_ASSIGN_ISSUES: ${{ inputs.auto_assign_issues }}
+        AUTO_ASSIGN_USERS: ${{ inputs.auto_assign_users }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}

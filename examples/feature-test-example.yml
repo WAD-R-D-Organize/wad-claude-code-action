@@ -1,0 +1,32 @@
+name: Claude Code Action - Feature Test Example
+on:
+  issues:
+    types: [opened, assigned]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-code:
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Claude Code with New Features
+        uses: anthropic-ai/claude-code-action@main
+        with:
+          # Enable both new features
+          reuse_issue_branch: true
+          auto_assign_issues: true
+          auto_assign_users: "maintainer1,maintainer2"
+          
+          # Authentication
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          # Standard configuration  
+          trigger_phrase: "@claude"
+          branch_prefix: "claude/"
+          
+          # Other options
+          use_commit_signing: true

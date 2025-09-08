@@ -43,6 +43,13 @@ jobs:
           #   actions: read
           # Optional: allow bot users to trigger the action
           # allowed_bots: "dependabot[bot],renovate[bot]"
+          
+          # Optional: reuse existing issue branches instead of creating new ones
+          # reuse_issue_branch: true
+          # Optional: automatically assign users to issues when Claude starts working
+          # auto_assign_issues: true
+          # Optional: specify custom users to assign (if not provided, assigns to issue creator)
+          # auto_assign_users: "user1,user2"
 ```
 
 ## Inputs
@@ -72,6 +79,9 @@ jobs:
 | `bot_name`                     | GitHub username to use for git operations (defaults to Claude's bot name)                                                                                                      | No       | `claude[bot]` |
 | `allowed_bots`                 | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots                                                                | No       | ""            |
 | `allowed_non_write_users`      | **⚠️ RISKY**: Comma-separated list of usernames to allow without write permissions, or '\*' for all users. Only works with `github_token` input. See [Security](./security.md) | No       | ""            |
+| `reuse_issue_branch`           | In tag mode, check for and reuse existing issue branches instead of creating new ones. See [Issue Management](./issue-management.md)                                           | No       | `false`       |
+| `auto_assign_issues`           | Automatically assign users to issues when Claude starts working. See [Issue Management](./issue-management.md)                                                                 | No       | `false`       |
+| `auto_assign_users`            | Comma-separated list of usernames to assign to issues (if not provided, will use issue creator). See [Issue Management](./issue-management.md)                                | No       | ""            |
 
 ### Deprecated Inputs
 

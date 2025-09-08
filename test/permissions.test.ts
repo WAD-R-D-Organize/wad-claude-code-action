@@ -72,6 +72,9 @@ describe("checkWritePermissions", () => {
       botName: CLAUDE_BOT_LOGIN,
       allowedBots: "",
       allowedNonWriteUsers: "",
+      reuseIssueBranch: false,
+      autoAssignIssues: false,
+      autoAssignUsers: [],
       trackProgress: false,
     },
   });

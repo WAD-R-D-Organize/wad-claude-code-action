@@ -53,6 +53,7 @@ Each solution includes complete working examples, configuration details, and exp
 - **[Migration Guide](./docs/migration-guide.md)** - **⭐ Upgrading from v0.x to v1.0**
 - [Setup Guide](./docs/setup.md) - Manual setup, custom GitHub apps, and security best practices
 - [Usage Guide](./docs/usage.md) - Basic usage, workflow configuration, and input parameters
+- [Issue Management](./docs/issue-management.md) - Issue 分支重用和自動分配功能
 - [Custom Automations](./docs/custom-automations.md) - Examples of automated workflows and custom prompts
 - [Configuration](./docs/configuration.md) - MCP servers, permissions, environment variables, and advanced settings
 - [Experimental Features](./docs/experimental.md) - Execution modes and network restrictions
