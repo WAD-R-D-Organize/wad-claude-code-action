@@ -124,7 +124,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     const username =
       triggerUsername || (usernameMatch ? usernameMatch[1] : "user");
 
-    header = `**Claude finished @${username}'s task`;
+    header = `**Claude 完成 @${username} 的任務`;
     if (durationStr) {
       header += ` in ${durationStr}`;
     }
@@ -132,7 +132,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   }
 
   // Add links section
-  let links = ` —— [View job](${jobUrl})`;
+  let links = ` —— [檢視工作](${jobUrl})`;
 
   // Add branch name with link
   if (branchName || branchLink) {
@@ -175,7 +175,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   const prUrl =
     prLinkFromContent || (prLink ? prLink.match(/\(([^)]+)\)/)?.[1] : "");
   if (prUrl) {
-    links += ` • [Create PR ➔](${prUrl})`;
+    links += ` • [建立 PR ➔](${prUrl})`;
   }
 
   // Build the new body with blank line between header and separator
