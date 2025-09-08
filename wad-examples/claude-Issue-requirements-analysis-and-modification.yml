@@ -1,0 +1,50 @@
+name: Claude Issue Requirements Analysis and Modification
+description: Use Claude Code to analyze and modify issue requirements in GitHub Actions
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+jobs:
+  claude-issue-requirements-analysis-and-modification:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@wadclaude')) ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@wadclaude'))
+    runs-on: [self-hosted, ubuntu-latest]
+    permissions:
+      contents: write
+      issues: write
+      id-token: write
+      actions: read
+      checks: write
+    steps:
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: |
+            ${{ github.event.repository.name }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Use the generated GitHub App token for both main repo and submodules access
+          token: ${{ steps.generate-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Run Claude Code For Issue Requirements Analysis and Modification
+        uses: WAD-R-D-Organize/wad-claude-code-action@master
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.generate-token.outputs.token }}
+          base_branch: master
+          assignee_trigger: "@wadclaude"
+          trigger_phrase: "@wadclaude"
+          reuse_issue_branch: true # Reuse existing branches for issues if available
+          auto_assign_issues: true # Automatically assign issues assignees
+          claude_args: |
+            --system-prompt "Always respond in Traditional Chinese (繁體中文)."
+            --allowedTools Bash(grep:*)
