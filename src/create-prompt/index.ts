@@ -623,24 +623,6 @@ ${eventData.eventName === "issue_comment" || eventData.eventName === "pull_reque
       - Use file system tools to make the change locally.
       - If you discover related tasks (e.g., updating tests), add them to the todo list.
       - Mark each subtask as completed as you progress.${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
-      ${
-        eventData.claudeBranch
-          ? `- Provide a URL to create a PR manually in this format:
-        [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
-        - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
-          Example: ${GITHUB_SERVER_URL}/${context.repository}/compare/main...feature-branch (correct)
-          NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
-        - IMPORTANT: Ensure all URL parameters are properly encoded - spaces should be encoded as %20, not left as spaces
-          Example: Instead of "fix: update welcome message", use "fix%3A%20update%20welcome%20message"
-        - The target-branch should be '${eventData.baseBranch}'.
-        - The branch-name is the current branch: ${eventData.claudeBranch}
-        - The body should include:
-          - A clear description of the changes
-          - Reference to the original ${eventData.isPR ? "PR" : "issue"}
-          - The signature: "Generated with [Claude Code](https://claude.ai/code)"
-        - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"`
-          : ""
-      }
 
    C. For Complex Changes:
       - Break down the implementation into subtasks in your comment checklist.
@@ -651,7 +633,28 @@ ${eventData.eventName === "issue_comment" || eventData.eventName === "pull_reque
       - Follow the same pushing strategy as for straightforward changes (see section B above).
       - Or explain why it's too complex: mark todo as completed in checklist with explanation.
 
-5. Final Update:
+${
+  eventData.claudeBranch
+    ? `5. PR Link Generation:
+   - Always provide a URL to create a PR manually in this format:
+     [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
+   - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
+     Example: ${GITHUB_SERVER_URL}/${context.repository}/compare/main...feature-branch (correct)
+     NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
+   - IMPORTANT: Ensure all URL parameters are properly encoded - spaces should be encoded as %20, not left as spaces
+     Example: Instead of "fix: update welcome message", use "fix%3A%20update%20welcome%20message"
+   - The target-branch should be '${eventData.baseBranch}'.
+   - The branch-name is the current branch: ${eventData.claudeBranch}
+   - The body should include:
+     - A clear description of the changes
+     - Reference to the original ${eventData.isPR ? "PR" : "issue"}
+     - The signature: "Generated with [Claude Code](https://claude.ai/code)"
+   - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"
+   - IMPORTANT: Always use the TodoWrite tool to add PR link generation as a task in your todo list
+
+6. Final Update:`
+    : `5. Final Update:`
+}
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
    - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
