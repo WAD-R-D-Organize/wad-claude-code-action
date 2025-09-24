@@ -135,6 +135,7 @@ export const agentMode: Mode = {
       baseBranch: baseBranch,
       claudeCommentId: undefined, // No tracking comment in agent mode
       allowedTools,
+      mode: "agent",
       context,
     });
 

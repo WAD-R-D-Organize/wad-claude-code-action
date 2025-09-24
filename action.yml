@@ -192,7 +192,7 @@ runs:
         # Install Claude Code if no custom executable is provided
         if [ -z "${{ inputs.path_to_claude_code_executable }}" ]; then
           echo "Installing Claude Code..."
-          curl -fsSL https://claude.ai/install.sh | bash -s 1.0.108
+          curl -fsSL https://claude.ai/install.sh | bash -s 1.0.123
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         else
           echo "Using custom Claude Code executable: ${{ inputs.path_to_claude_code_executable }}"
@@ -238,6 +238,7 @@ runs:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
+        ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
         CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
         CLAUDE_CODE_USE_VERTEX: ${{ inputs.use_vertex == 'true' && '1' || '' }}
 
@@ -273,7 +274,7 @@ runs:
         GITHUB_EVENT_NAME: ${{ github.event_name }}
         TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
         CLAUDE_BRANCH: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
-        IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment' }}
+        IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_target' || github.event_name == 'pull_request_review_comment' }}
         BASE_BRANCH: ${{ steps.prepare.outputs.BASE_BRANCH }}
         CLAUDE_SUCCESS: ${{ steps.claude-code.outputs.conclusion == 'success' }}
         OUTPUT_FILE: ${{ steps.claude-code.outputs.execution_file || '' }}

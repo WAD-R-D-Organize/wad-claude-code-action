@@ -88,6 +88,7 @@ describe("prepareMcpConfig", () => {
       baseBranch: "main",
       allowedTools: [],
       context: mockContext,
+      mode: "tag",
     });
 
     const parsed = JSON.parse(result);
@@ -108,6 +109,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
+      mode: "tag",
       context: mockContextWithSigning,
     });
 
@@ -131,6 +133,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: ["mcp__github__create_issue", "mcp__github__create_pr"],
+      mode: "tag",
       context: mockContext,
     });
 
@@ -151,6 +154,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: ["mcp__github_inline_comment__create_inline_comment"],
+      mode: "tag",
       context: mockPRContext,
     });
 
@@ -171,6 +175,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
+      mode: "tag",
       context: mockContext,
     });
 
@@ -191,6 +196,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
+      mode: "tag",
       context: mockContextWithSigning,
     });
 
@@ -210,6 +216,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
+      mode: "tag",
       context: mockContextWithSigning,
     });
 
@@ -227,6 +234,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
+      mode: "tag",
       context: mockPRContext,
     });
 
@@ -246,6 +254,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
+      mode: "tag",
       context: mockContext,
     });
 
@@ -263,6 +272,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
+      mode: "tag",
       context: mockPRContext,
     });
 

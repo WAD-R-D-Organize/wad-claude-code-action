@@ -335,6 +335,7 @@ export function prepareContext(
   return {
     ...commonFields,
     eventData,
+    githubContext: context,
   };
 }
 
@@ -383,6 +384,7 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
       };
 
     case "pull_request":
+    case "pull_request_target":
       return {
         eventType: "PULL_REQUEST",
         triggerContext: eventData.eventAction

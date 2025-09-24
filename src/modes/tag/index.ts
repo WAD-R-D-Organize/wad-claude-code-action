@@ -15,6 +15,7 @@ import { createPrompt, generateDefaultPrompt } from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
 import type { PreparedContext } from "../../create-prompt/types";
 import type { FetchDataResult } from "../../github/data/fetcher";
+import { parseAllowedTools } from "../agent/parse-tools";
 
 /**
  * Tag mode implementation.
@@ -121,19 +122,10 @@ export const tagMode: Mode = {
 
     await createPrompt(tagMode, modeContext, githubData, context);
 
-    // Get our GitHub MCP servers configuration
-    const ourMcpConfig = await prepareMcpConfig({
-      githubToken,
-      owner: context.repository.owner,
-      repo: context.repository.repo,
-      branch: branchInfo.claudeBranch || branchInfo.currentBranch,
-      baseBranch: branchInfo.baseBranch,
-      claudeCommentId: commentId.toString(),
-      allowedTools: [],
-      context,
-    });
-
-    // Don't output mcp_config separately anymore - include in claude_args
+    const userClaudeArgs = process.env.CLAUDE_ARGS || "";
+    const userAllowedMCPTools = parseAllowedTools(userClaudeArgs).filter(
+      (tool) => tool.startsWith("mcp__github_"),
+    );
 
     // Build claude_args for tag mode with required tools
     // Tag mode REQUIRES these tools to function properly
@@ -149,6 +141,7 @@ export const tagMode: Mode = {
       "mcp__github_ci__get_ci_status",
       "mcp__github_ci__get_workflow_run_details",
       "mcp__github_ci__download_job_log",
+      ...userAllowedMCPTools,
     ];
 
     // Add git commands when not using commit signing
@@ -170,7 +163,18 @@ export const tagMode: Mode = {
       );
     }
 
-    const userClaudeArgs = process.env.CLAUDE_ARGS || "";
+    // Get our GitHub MCP servers configuration
+    const ourMcpConfig = await prepareMcpConfig({
+      githubToken,
+      owner: context.repository.owner,
+      repo: context.repository.repo,
+      branch: branchInfo.claudeBranch || branchInfo.currentBranch,
+      baseBranch: branchInfo.baseBranch,
+      claudeCommentId: commentId.toString(),
+      allowedTools: Array.from(new Set(tagModeTools)),
+      mode: "tag",
+      context,
+    });
 
     // Build complete claude_args with multiple --mcp-config flags
     let claudeArgs = "";
